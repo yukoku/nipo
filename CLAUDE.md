@@ -131,6 +131,8 @@ src/
 - 確認ダイアログは `const confirm = useConfirm()`（`@/components/confirm-dialog`）で `if (await confirm(CONFIRM_MESSAGES.submitReport)) { ... }` とする。`AlertDialog` を画面ごとに組み立てない
 - フォームの項目は `FormField`（`@/components/form-field`）で包む。`required` で `*` が付き、`error` を渡すと項目のすぐ下に赤字で出る。入力欄には `{...controlProps(id, fieldState.error)}` を付ける
 - API が 400 を返したら `applyApiErrors(error, form.setError, { fields: [...] })`（`@/lib/form-errors`）で各項目のエラーにする。項目に結び付けられないものは `<FormRootError errors={form.formState.errors} />` に出る。`false` が返ったら（409・500 など）`notifyError(apiErrorMessage(error))` を出す
+- 一覧画面は、検索条件とページ番号を URL のクエリに保持する。クエリは `buildQueryString()`（`@/lib/list-query`）で作り、ページ送りは `ListPagination`（`@/components/list-pagination`）、行クリックは `LinkRow`（`@/components/link-row`）を使う（行の中に同じ移動先のリンクも置く）。スマートフォン幅では表を隠してカードを出す（`hidden md:block` / `md:hidden`）
+- 選択肢に使う営業の一覧は `listStaffOptions(user, roles)`（`@/server/services/sales-staff`）
 - 入力画面では `const { confirmLeave } = useUnsavedChangesGuard(form.formState.isDirty)`（`@/components/unsaved-changes`）を呼ぶ。リンクでの移動とブラウザを閉じる操作は自動で確かめる。キャンセルボタンなどコードで移動するときは `if (await confirmLeave()) router.push(...)` とする（決定事項 #29）
 
 ## テスト
@@ -157,6 +159,7 @@ src/
 - git worktree で複数の作業を並行するときは、各作業ディレクトリの `.env.test.local` で別のテスト用DB（例：`nipo_issue15_test`）を指定する。同じテスト用DB を同時に使うと、テスト同士がデータを消し合う
 - 権限判定（`src/server/authz/`）と入力チェック（`src/schemas/`）は分岐網羅 100% が必須。`npm run test:coverage` で下回るとエラーになる
 - コンポーネントテストは、要素を役割やラベルで取得する（`getByRole`・`getByLabelText`）。クラス名や DOM 構造に依存しない
+- Radix UI の部品（Select など）が使うブラウザの API（`ResizeObserver` など）は、`src/test/setup-component.ts` で補っている
 
 # 開発ルール
 

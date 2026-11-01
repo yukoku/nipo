@@ -92,6 +92,20 @@ export async function listStaff(user: AuthzUser, query: StaffListInput): Promise
   return { items: rows.map(toView), meta: buildPageMeta(query, totalCount) }
 }
 
+/**
+ * 選択肢に使う営業の一覧（有効な人だけ。氏名の昇順）。顧客一覧（SC-05）の担当営業の絞り込みなどに使う。管理者のみ
+ *
+ * @param roles 含めるロール（例：担当営業なら営業・上長）
+ */
+export async function listStaffOptions(user: AuthzUser, roles: readonly Role[]): Promise<{ id: number; name: string }[]> {
+  requireRole(user, 'ADMIN')
+  return prisma.salesStaff.findMany({
+    where: { isActive: true, role: { in: [...roles] } },
+    select: { id: true, name: true },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+  })
+}
+
 /** S-02 営業登録（管理者のみ）。メールアドレスが重複していたら 409 `EMAIL_ALREADY_EXISTS` */
 export async function createStaff(user: AuthzUser, input: StaffCreateInput): Promise<StaffView> {
   requireRole(user, 'ADMIN')
