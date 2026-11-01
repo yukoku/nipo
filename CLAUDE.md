@@ -54,6 +54,15 @@ src/
 - Server Actions は使わない（API 仕様書・OpenAPI 定義と別の入口ができ、権限チェックの漏れにつながるため）
 - 権限チェックは services の中で行う（画面・API のどちらから呼ばれても同じ判定になるようにする）
 
+## UI
+- 部品は shadcn/ui を使う。足りない部品は `npx shadcn@latest add <名前>` で追加する（`src/components/ui/` に生成される）
+- `src/components/ui/` のファイルは手で書き換えない。見た目を変えたいときは、使う側で `className` を渡すか、`src/components/` に包む部品を作る
+- フォームは react-hook-form + Zod + shadcn/ui の `Field` 部品（`Field`・`FieldLabel`・`FieldError`）で作る。旧来の `form` 部品は使わない
+- クラス名の結合には `cn()`（`@/lib/utils`）を使う
+- テーマはライトモードのみ（ダークモードの切り替えは作らない）
+- アイコンは lucide-react を使う
+- 部品の見た目は開発環境の `/dev/ui-sample` で確認できる（本番では 404）
+
 # 開発ルール
 
 ## 作業の進め方
