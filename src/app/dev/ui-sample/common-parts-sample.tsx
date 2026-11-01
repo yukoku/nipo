@@ -29,6 +29,15 @@ const customerSchema = z.object({
 })
 type CustomerValues = z.infer<typeof customerSchema>
 
+/** 確認ダイアログの見本（ボタンの文言と、表示する確認ダイアログ） */
+const CONFIRM_SAMPLES = [
+  { label: '日報の提出（M-06）', options: CONFIRM_MESSAGES.submitReport },
+  { label: '未保存の離脱（M-07）', options: CONFIRM_MESSAGES.leaveUnsaved },
+  { label: 'コメントの削除（M-08）', options: CONFIRM_MESSAGES.deleteComment },
+  { label: '上長の無効化（M-11）', options: CONFIRM_MESSAGES.deactivateManager },
+  { label: '下書きの削除（M-12）', options: CONFIRM_MESSAGES.deleteDraft },
+] as const
+
 const ROLES: { role: Role; label: string }[] = [
   { role: 'SALES', label: '営業' },
   { role: 'MANAGER', label: '上長' },
@@ -89,17 +98,17 @@ export function CommonPartsSample() {
       <Card>
         <CardHeader>
           <CardTitle>確認ダイアログ・完了メッセージ</CardTitle>
-          <CardDescription>useConfirm() と CONFIRM_MESSAGES（M-06〜M-08・M-11・M-12）、notifySuccess()（M-09）</CardDescription>
+          <CardDescription>ボタンを押すと、各画面で使う確認ダイアログと、保存・提出などの完了メッセージ（トースト）が表示されます</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          {Object.entries(CONFIRM_MESSAGES).map(([key, options]) => (
+          {CONFIRM_SAMPLES.map(({ label, options }) => (
             <Button
-              key={key}
+              key={label}
               variant="outline"
               size="sm"
-              onClick={async () => toast(`${key}：${(await confirm(options)) ? '実行する' : 'やめる'}`)}
+              onClick={async () => toast(`${label}：${(await confirm(options)) ? '実行する' : 'やめる'}を選びました`)}
             >
-              {key}
+              {label}
             </Button>
           ))}
           <Button size="sm" onClick={() => notifySuccess('submitted')}>
