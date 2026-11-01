@@ -38,6 +38,7 @@
 | 25 | パスワードのハッシュ方式と最大文字数 | Argon2id（OWASP の推奨値）。パスワードは 8〜64 文字 | **決定** | api, screens, test-spec |
 | 26 | セッションの細かい仕様（Cookie の属性・延長の間隔・期限切れの削除） | `__Host-` は付けない。`Secure` は本番だけ。延長は 1 時間に 1 回まで。期限切れはログイン時に削除 | **決定** | api |
 | 27 | CSRF の確認に失敗したときの返し方と Origin の確認方法 | 403 に `reason: CSRF_TOKEN_INVALID` を付ける。Origin はホストだけを比べる | **決定** | api |
+| 28 | 画面の URL とアクセス制御の方法（proxy で Cookie の有効期限を延ばす方法を含む） | proxy は Cookie の有無だけを見て、Cookie の有効期限を DB を見ずに「今から 7 日」に延ばす。権限は各ページで確かめる | **決定** | screens |
 
 ## 決定の理由
 
@@ -144,7 +145,7 @@ OpenAPI の Cookie 認証（`securitySchemes`）に名前が必要なため、�
 - **Cookie 名に `__Host-` 接頭辞は付けない**。`__Host-` を付けた Cookie は `Secure` が必須で、開発環境（http://localhost）では Secure の Cookie を受け付けないブラウザ（Safari など）がある。`__Host-` が防ぐのは「同じドメインの別のサブドメインから Cookie を上書きされる」攻撃だが、Cloud Run の既定のドメイン（`*.run.app`）は Public Suffix List に載っており、他のサービスからこのアプリの Cookie を設定できない。独自ドメインで運用し、サブドメインを他のサービスと共有する場合は付けることを検討する
 - **`Secure` は本番（`NODE_ENV=production`）だけ付ける**。理由は上と同じ。本番は HTTPS のみで動く（T-NF-03・T-NF-05）
 - **有効期限の延長は、前回の延長から 1 時間たったときだけ DB に書き込む**。「最後のアクセスから 7 日」を厳密に守るとアクセスのたびに DB へ書き込むことになるため。延長が最大 1 時間遅れても、7 日の有効期間に対しては影響が小さい
-- **Cookie の有効期限の延長は、proxy（#20）と認証 API（#18）で行う**。Next.js では Server Component の描画中に Cookie を書き換えられない（`cookies().set` は Route Handler・Server Function・proxy だけ）。そのため `getCurrentUser()` は DB の有効期限だけを延ばし、Cookie の有効期限は Cookie を書き換えられる場所で延ばす。延ばさないと、使い続けていてもログインから 7 日で Cookie が消えてしまう
+- **Cookie の有効期限の延長は、proxy（#20）と認証 API（#18）で行う**（proxy での延ばし方は #28 で決めた）。Next.js では Server Component の描画中に Cookie を書き換えられない（`cookies().set` は Route Handler・Server Function・proxy だけ）。そのため `getCurrentUser()` は DB の有効期限だけを延ばし、Cookie の有効期限は Cookie を書き換えられる場所で延ばす。延ばさないと、使い続けていてもログインから 7 日で Cookie が消えてしまう
 - **期限切れのセッションは、ログイン（セッションの作成）のときに全ユーザー分をまとめて削除する**。定期実行の仕組み（Cloud Scheduler など）を作るほどの量ではない（営業 200 人）。期限切れのセッションは残っていても認証には使われず、見つけた時点でも削除する
 
 ### #27 CSRF の確認（決定）
@@ -153,3 +154,12 @@ CSRF 対策（Issue #17）の実装時に決めた。
 - **`Origin` ヘッダーは、ホスト（ポートを含む）だけを比べ、スキーム（http / https）は比べない**。Cloud Run では TLS が手前のロードバランサーで終わり、アプリから見たリクエストの URL が http になることがあるため。ホストは `X-Forwarded-Host`、なければ `Host` ヘッダーと比べる。別のサイトのページは `X-Forwarded-Host` のような独自のヘッダーを付けられない（CORS で止められる）ので、これで偽装されることはない
 - **`Origin` ヘッダーがないリクエストは通し、CSRF トークンで防ぐ**。古いブラウザや同じサイトからの一部のリクエストは `Origin` を付けないことがある。CSRF トークンが主な防御で、`Origin` の確認は追加の防御という位置づけにする
 - **トークンの比較は、両方を SHA-256 にそろえてから `timingSafeEqual` で行う**。長さが違うと `timingSafeEqual` は例外になり、長さの違いが分かってしまうため
+
+### #28 画面の URL とアクセス制御（決定）
+画面のアクセス制御（Issue #20）の実装時に決めた。
+- **画面の URL**：画面定義書に URL がなかったため、§1 の表のとおり決めた（日報は `/reports`、顧客は `/customers`、営業は `/staff`）。営業マスタを `/sales-staff`（API と同じ）にしなかったのは、画面の URL は短く分かりやすくするため
+- **proxy（`src/proxy.ts`）は、セッション Cookie が「あるか」だけを見る**。なければログイン画面へリダイレクトする。セッションが正しいか・ロールが合っているかは、各ページの最初に `requirePageUser()`・`requirePageRole()` で DB を見て確かめる。proxy の対象パス（matcher）の設定漏れなどがあっても、ページ側で必ず止められるようにするため（Next.js のデータセキュリティのガイドに沿う）
+- **権限の確認はレイアウト（layout.tsx）では行わない**。レイアウトは画面を移動しても描画し直されず、ページの描画も止められないため（Next.js の認証ガイド）。各ページで呼び忘れていないことは、`src/app/page-auth-guard.test.ts` で確かめる
+- **Cookie の有効期限は、proxy で DB を見ずに「今から 7 日」に延ばす**。決定事項 #26 では「DB の有効期限を延ばしたときだけ Cookie も延ばす」想定だったが、proxy で DB を見ると、画面の表示やリンクの先読み（prefetch）のたびに DB への問い合わせが 1 回増える。Cookie の有効期限が DB のセッションより長くなっても、DB のセッションが切れていれば認証されないため安全上の問題はない（ログイン画面に移り、ログインし直すと Cookie は上書きされる）。DB の有効期限は、ページで `getCurrentUser()` を呼ぶたびに延びる（1 時間に 1 回まで）
+- **ログイン後の戻り先（`?next=`）は、このサイトの中のパスだけを受け付ける**（`safeRedirectPath()`、`src/lib/routes.ts`）。`//evil.example`・`/\evil.example`・制御文字を含む値などは捨てて、トップ画面に移る（オープンリダイレクトの防止）
+- **403 画面は Next.js の `forbidden()` で出す**（`experimental.authInterrupts` を有効にする）。実験的な機能だが、403 のステータスコードと画面を正しく返せる方法がほかにないため。使えなくなった場合は、403 画面の部品を直接描画する方法に切り替える

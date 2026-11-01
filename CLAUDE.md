@@ -81,8 +81,17 @@ src/
 - ログイン中のユーザーは `getCurrentUser()`（Server Component）で取得する
 - ログイン API（セッションがまだない）では、`verifyOrigin(request)`（`@/server/auth/csrf`）で Origin だけを確かめる
 - ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
-- Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
+- Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy（`src/proxy.ts`。画面へのリクエストのたびに DB を見ずに延ばす。決定事項 #28）で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
 - ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()` を使う
+
+## 画面のアクセス制御
+- 画面の URL は docs/screens.md §1 のとおり。パスとロールごとのトップ画面は `@/lib/routes`（`LOGIN_PATH`・`homePathForRole()`）を使い、文字列を直接書かない
+- proxy（`src/proxy.ts`）は、セッション Cookie がなければログイン画面（`/login?next=元の画面`）へリダイレクトするだけ。セッションが正しいかやロールは見ない
+- **画面（page.tsx）は、最初に必ず `await requirePageUser()` か `await requirePageRole('ADMIN')`（`@/server/auth/page-auth`）を呼ぶ**。ログインしていなければログイン画面へ、ロールが違えば 403 画面（`src/app/forbidden.tsx`）になる。呼び忘れは `src/app/page-auth-guard.test.ts` で見つかる（認証なしで開ける画面は、そのテストの `PUBLIC_PAGES` に足す）
+  - 管理者用の画面（SC-05〜SC-08）は `requirePageRole('ADMIN')`、日報の画面（SC-02〜SC-04）は `requirePageRole('SALES', 'MANAGER')`
+  - layout.tsx では権限を確かめない（画面を移動しても描画し直されず、ページの描画も止められないため。決定事項 #28）
+- 画面から services を呼んで `NotFoundError`・`ForbiddenError` が投げられたら、`.catch(rethrowAsPageError)` で 404 画面・403 画面にする（閲覧できない日報は 404 画面。SC-T-04）
+- ログイン後の戻り先などのリダイレクト先にユーザーの入力を使うときは、`safeRedirectPath()`（`@/lib/routes`）を通す（オープンリダイレクトの防止）
 
 ## 権限判定
 - 権限の判定は `src/server/authz/` の純粋関数で行い、services や画面で条件を書き直さない（DB にはアクセスしないので、判定に必要な値は呼び出し側で読み込んで渡す）
