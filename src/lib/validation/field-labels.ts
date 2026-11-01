@@ -39,6 +39,9 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   role: '権限',
   manager_id: '上長',
 
+  // ヘルスチェック（docs/api.md §8）
+  check: '確認する項目',
+
   // 共通
   name: '名前',
   is_active: '状態',

@@ -1,34 +1,9 @@
 import 'server-only'
 
-/** エラーレスポンスの `code`（docs/api.md §1.5） */
-export type ApiErrorCode =
-  | 'VALIDATION_ERROR'
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'TOO_MANY_ATTEMPTS'
-  | 'INTERNAL_ERROR'
+import type { ApiErrorBody, ApiErrorCode, ConflictReason, ValidationErrorDetail } from '@/schemas/api-error'
 
-/** 409 の理由（エラーレスポンスの `reason`。docs/api.md §1.5、決定事項 #20） */
-export type ConflictReason = 'REPORT_ALREADY_EXISTS' | 'REPORT_LOCKED' | 'REPORT_NOT_DRAFT' | 'EMAIL_ALREADY_EXISTS'
-
-/** 入力チェックエラーの項目別メッセージ */
-export interface ValidationErrorDetail {
-  /** `visit_records[0].content` の形式の項目のパス（リクエスト全体のエラーは空文字） */
-  field: string
-  message: string
-}
-
-/** エラーレスポンスの本文（docs/api.md §1.5） */
-export interface ApiErrorBody {
-  error: {
-    code: ApiErrorCode
-    message: string
-    reason?: ConflictReason
-    details?: ValidationErrorDetail[]
-  }
-}
+// 型の定義元は Zod スキーマ（`@/schemas/api-error`。OpenAPI の ErrorResponse と同じ）
+export type { ApiErrorBody, ApiErrorCode, ConflictReason, ValidationErrorDetail }
 
 /**
  * API で返すエラーの基底クラス。services などで throw すると、`withApi()` がエラーレスポンスに変換する。

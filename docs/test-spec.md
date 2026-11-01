@@ -232,6 +232,15 @@
 | T-STF-12 | 中 | 部下人数 | admin で `GET /sales-staff/1` | `subordinate_count = 2`（無効な退職者は数えない。決定事項 #17） |
 | T-STF-13 | 高 | 上長は登録・更新不可 | suzuki で POST / PUT | 403 |
 
+### 7.3 ヘルスチェック（`GET /health`）
+
+| ID | 優先度 | 観点 | 前提・入力 | 期待結果 |
+|---|---|---|---|---|
+| T-HLT-01 | 中 | 認証なしで確認できる | Cookie なし、クエリなし | 200、`{ "data": { "status": "ok" } }`。DB には接続しない |
+| T-HLT-02 | 中 | DB の接続確認 | `check=db` | 200、`checks.db = "ok"` |
+| T-HLT-03 | 低 | 不正な確認項目 | `check=cache` | 400 |
+| T-HLT-04 | 中 | DB に接続できない | DB を止めた状態で `check=db` | 500 `INTERNAL_ERROR`。レスポンスに接続先などの詳細を含まない |
+
 ## 8. 画面テスト
 
 | ID | 優先度 | 画面 | 観点 | 手順 | 期待結果 |
