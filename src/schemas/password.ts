@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /** パスワードの最小・最大の文字数（docs/api.md S-02、決定事項 #25） */
 export const PASSWORD_MIN_LENGTH = 8
-export const PASSWORD_MAX_LENGTH = 20
+export const PASSWORD_MAX_LENGTH = 64
 
 /** 英字と数字をそれぞれ 1 文字以上含まないときのメッセージ */
 export const PASSWORD_CHARACTER_MESSAGE = 'パスワードは英字と数字をそれぞれ1文字以上含めてください'
@@ -10,7 +10,7 @@ export const PASSWORD_CHARACTER_MESSAGE = 'パスワードは英字と数字を�
 /**
  * パスワードポリシー（docs/api.md S-02・S-04、docs/screens.md SC-08）。
  *
- * - 8 文字以上、20 文字以内
+ * - 8 文字以上、64 文字以内
  * - 英字（A〜Z・a〜z）と数字（0〜9）をそれぞれ 1 文字以上含む
  * - 記号・空白など、それ以外の文字も使える
  *
