@@ -17,6 +17,7 @@
 | 日時形式 | ISO 8601 タイムゾーン付き（例：`2026-10-31T18:05:00+09:00`） |
 | 基準タイムゾーン | Asia/Tokyo（JST）。下記「日付・時刻の扱い」を参照 |
 | 命名規則 | JSON のキーは snake_case |
+| レスポンスの形 | 成功時の本文は `{ "data": ... }` で包む（一覧は `meta` も付ける。§1.4）。204 は本文なし（決定事項 #21） |
 
 **日付・時刻の扱い**
 - サーバー（Cloud Run）は UTC で動くが、業務上の日付・時刻はすべて JST を基準にする
@@ -51,7 +52,10 @@
 | `page` | integer | 1 | ページ番号 |
 | `per_page` | integer | 20 | 1ページの件数（最大 100） |
 
-レスポンスには `meta` を含める。
+- `page` が 1 未満、`per_page` が 1〜100 の範囲外、または整数でない場合は `400 VALIDATION_ERROR`（上限に丸めない。決定事項 #22）
+- 空の値（`?page=`）は指定なしとして初期値を使う
+
+レスポンスには `meta` を含める。0 件のときの `total_pages` は `0`。
 
 ```json
 {
@@ -80,11 +84,36 @@
 | 401 | `UNAUTHENTICATED` | 未ログイン・セッション切れ・認証失敗 |
 | 403 | `FORBIDDEN` | 権限なし |
 | 404 | `NOT_FOUND` | 対象が存在しない（閲覧権限のない日報も 404 を返し、存在を推測させない） |
-| 409 | `CONFLICT` | 一意制約違反（同日の日報が既にある、メール重複）、編集不可状態 |
+| 409 | `CONFLICT` | 一意制約違反（同日の日報が既にある、メール重複）、編集不可状態。理由を `reason` で返す（下記） |
 | 429 | `TOO_MANY_ATTEMPTS` | ログイン試行回数の上限に達した（A-01） |
 | 500 | `INTERNAL_ERROR` | サーバーエラー |
 
-`details[].field` はネストした配列を `visit_records[0].content` のように表記する。
+`details[].field` はネストした配列を `visit_records[0].content` のように表記する。リクエスト全体のエラー（本文が JSON でないなど）は `field` を空文字にする。
+
+`details[].message` は docs/screens.md §5 のメッセージに合わせる（必須：M-02「{項目名}は必須です」、文字数：M-03「{項目名}は{n}文字以内で入力してください」）。
+
+**409 の理由（`reason`）**（決定事項 #20）
+
+409 は `code` を `CONFLICT` のまま、理由を `reason` で返す。画面は `reason` を見て表示を切り替える。
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "reason": "REPORT_ALREADY_EXISTS",
+    "message": "この日付の日報は既に作成されています"
+  }
+}
+```
+
+| `reason` | 状況 | 使う API |
+|---|---|---|
+| `REPORT_ALREADY_EXISTS` | 同じ日付の日報が既にある（M-04） | R-02 |
+| `REPORT_LOCKED` | コメントが付いているため編集できない | R-04 |
+| `REPORT_NOT_DRAFT` | 提出済みのため削除できない | R-05 |
+| `EMAIL_ALREADY_EXISTS` | メールアドレスが既に登録されている（M-10） | S-02, S-04 |
+
+理由を区別する必要がない 409（S-04 の、部下がいる上長のロール変更など）は `reason` を付けない。
 
 ## 2. API 一覧
 
@@ -353,7 +382,7 @@ A-03 と同じ形式のユーザー情報を返す。
 
 **エラー**
 - `400 VALIDATION_ERROR`：入力チェックエラー
-- `409 CONFLICT`（`code` 詳細：`REPORT_ALREADY_EXISTS`）：同日付の日報が既に存在
+- `409 CONFLICT`（`reason`：`REPORT_ALREADY_EXISTS`）：同日付の日報が既に存在
 
 ---
 
@@ -403,7 +432,7 @@ A-03 と同じ形式のユーザー情報を返す。
 - `400 VALIDATION_ERROR`：入力チェックエラー、他の日報に属する `visit_records[].id` を指定
 - `403 FORBIDDEN`：本人以外
 - `404 NOT_FOUND`：存在しない、または閲覧権限がない
-- `409 CONFLICT`（`code` 詳細：`REPORT_LOCKED`）：コメントが付いているため編集不可
+- `409 CONFLICT`（`reason`：`REPORT_LOCKED`）：コメントが付いているため編集不可
 
 ---
 
@@ -421,7 +450,7 @@ A-03 と同じ形式のユーザー情報を返す。
 **エラー**
 - `403 FORBIDDEN`：本人以外（閲覧はできる上長など）
 - `404 NOT_FOUND`：存在しない、または閲覧権限がない
-- `409 CONFLICT`（`code` 詳細：`REPORT_NOT_DRAFT`）：提出済みの日報
+- `409 CONFLICT`（`reason`：`REPORT_NOT_DRAFT`）：提出済みの日報
 
 ---
 
@@ -657,7 +686,7 @@ A-03 と同じ形式のユーザー情報を返す。
 **レスポンス** `201 Created`：営業オブジェクト
 
 **エラー**
-- `409 CONFLICT`（`code` 詳細：`EMAIL_ALREADY_EXISTS`）
+- `409 CONFLICT`（`reason`：`EMAIL_ALREADY_EXISTS`）
 
 ---
 
@@ -687,7 +716,7 @@ A-03 と同じ形式のユーザー情報を返す。
 
 ## 8. 決定事項
 
-作成時の未決事項は、[仕様決定記録](./decisions.md) の #12〜#15・#18 で決定した。要点は次のとおり。
+作成時の未決事項は、[仕様決定記録](./decisions.md) の #12〜#15・#18、実装時に #20〜#22 で決定した。要点は次のとおり。
 
 - 認証はセッション Cookie 方式。セッションは DB に保存する（#12）
 - 本人は下書きの日報を削除できる（R-05、#13）
