@@ -1,3 +1,4 @@
+import vitest from '@vitest/eslint-plugin'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
@@ -36,6 +37,18 @@ const eslintConfig = defineConfig([
     files: ['src/components/ui/**'],
     rules: {
       eqeqeq: 'off',
+    },
+  },
+
+  // テストファイル：Vitest の推奨ルール（expect のないテスト、focus したままのテストなどを検出）
+  {
+    files: ['src/**/*.test.{ts,tsx}', 'src/test/**'],
+    plugins: { vitest },
+    rules: {
+      ...vitest.configs.recommended.rules,
+      // .only の消し忘れで他のテストが実行されなくなるのを防ぐ
+      'vitest/no-focused-tests': 'error',
+      'vitest/no-disabled-tests': 'warn',
     },
   },
 

@@ -63,6 +63,22 @@ src/
 - アイコンは lucide-react を使う
 - 部品の見た目は開発環境の `/dev/ui-sample` で確認できる（本番では 404）
 
+## テスト
+- テストは Vitest で書く。`npm test` で全件、`npm run test:watch` で変更を監視しながら実行する
+- テストファイルは対象ファイルと同じ場所に置く。ファイル名で実行環境（Vitest のプロジェクト）が決まる
+
+| ファイル名 | プロジェクト | 環境 | 対象 |
+|---|---|---|---|
+| `*.test.ts` | `unit` | Node | 純粋なロジック（権限判定・入力チェック・日付など） |
+| `*.test.tsx` | `component` | jsdom | React コンポーネント（Testing Library） |
+| `*.api.test.ts` | `api` | Node + テスト用DB | Route Handler の結合テスト（ファイルは直列実行） |
+
+- テスト名は日本語で、期待する動作を書く（例：`it('空のまま保存すると、各項目の下にエラーが表示される')`）。docs/test-spec.md のケースを実装するときは、テスト名の先頭に ID を付ける（例：`it('T-RPT-03: 同日の日報があれば 409 を返す')`）
+- テストは UTC で動く（本番の Cloud Run と同じ）。現在日時を使うテストは `setupFixedTime()`（`@/test/time`）で基準日時 2026-10-31 10:00 JST に固定する
+- `vi.fn()` の呼び出し履歴は各テストの前に自動で消える（Vitest 5 の既定）
+- 権限判定（`src/server/authz/`）と入力チェック（`src/schemas/`）は分岐網羅 100% が必須。`npm run test:coverage` で下回るとエラーになる
+- コンポーネントテストは、要素を役割やラベルで取得する（`getByRole`・`getByLabelText`）。クラス名や DOM 構造に依存しない
+
 # 開発ルール
 
 ## 作業の進め方
