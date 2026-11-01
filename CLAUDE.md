@@ -80,7 +80,7 @@ src/
 - **ログインが必要な API は、Route Handler の最初で `const { user } = await requireAuth(request)`（`@/server/auth/require-auth`）を呼ぶ**。未ログインなら 401、更新系（POST・PUT・PATCH・DELETE）なら CSRF トークンと Origin も確かめて、失敗したら 403（`reason: CSRF_TOKEN_INVALID`）。`requireCurrentUser()` は CSRF を確かめないので、API では使わない
 - ログイン中のユーザーは `getCurrentUser()`（Server Component）で取得する
 - ログイン API（セッションがまだない）では、`verifyOrigin(request)`（`@/server/auth/csrf`）で Origin だけを確かめる
-- ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
+- ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ（トランザクションの中では `deleteSessionsForStaff(id, tx)`）
 - Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy（`src/proxy.ts`。画面へのリクエストのたびに DB を見ずに延ばす。決定事項 #28）で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
 - ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()`、画面で API の値を DB の値に戻すときは `fromApiRole()`（`@/lib/roles`）を使う
 
@@ -101,6 +101,7 @@ src/
 - R-03 の `permissions` は `reportPermissions(user, report)` で作る
 - 一覧（R-01）は `viewableReportsWhere(user)` を Prisma の `where` に入れて絞り込む（`canViewReport` と同じ規則であることを `report.api.test.ts` で確かめている。規則を変えたら両方を直す）
 - ロールで決まる操作（マスタ管理は管理者だけ、日報の作成は営業・上長だけ など）は `requireRole(user, 'ADMIN')`（`@/server/authz/role`）
+- 任意の文字列項目（空文字を `null` として保存する）の Zod スキーマは `optionalText(max)`（`@/schemas/text`）を使う
 
 ## パスワード
 - パスワードは `hashPassword()`（`@/server/auth/password`）でハッシュ化して保存する。平文をログ・DB・レスポンスに出さない

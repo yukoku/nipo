@@ -6,7 +6,7 @@ import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
 import { cache } from 'react'
 
-import type { Role } from '@/generated/prisma/client'
+import type { Prisma, Role } from '@/generated/prisma/client'
 import { SESSION_COOKIE_NAME } from '@/lib/api-constants'
 import { UnauthenticatedError } from '@/server/api/errors'
 import { prisma } from '@/server/db/prisma'
@@ -136,9 +136,12 @@ export async function deleteSession(token: string | undefined): Promise<void> {
   await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } })
 }
 
-/** ある営業のセッションをすべて削除する（営業を無効化したときに呼ぶ。#24・T-AUTH-10）。削除した件数を返す */
-export async function deleteSessionsForStaff(salesStaffId: number): Promise<number> {
-  const { count } = await prisma.session.deleteMany({ where: { salesStaffId } })
+/** ある営業のセッションをすべて削除する（営業を無効化したときに呼ぶ。#24・T-AUTH-10）。トランザクションの中なら `db` に渡す。削除した件数を返す */
+export async function deleteSessionsForStaff(
+  salesStaffId: number,
+  db: Pick<Prisma.TransactionClient, 'session'> = prisma,
+): Promise<number> {
+  const { count } = await db.session.deleteMany({ where: { salesStaffId } })
   return count
 }
 

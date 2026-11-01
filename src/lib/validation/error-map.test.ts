@@ -18,6 +18,12 @@ describe('createErrorMap', () => {
       expect(firstMessage(schema, { problem: null })).toBe('Problemは必須です')
     })
 
+    it('選択肢（enum）の項目がない・null のときも「{項目名}は必須です」になる', () => {
+      const schema = z.object({ target: z.enum(['problem', 'plan']) })
+      expect(firstMessage(schema, {})).toBe('コメント対象は必須です')
+      expect(firstMessage(schema, { target: null })).toBe('コメント対象は必須です')
+    })
+
     it('空文字・空白のみ（trim + min(1)）のとき「{項目名}は必須です」になる', () => {
       const schema = z.object({ content: z.string().trim().min(1) })
       expect(firstMessage(schema, { content: '' })).toBe('訪問内容は必須です')

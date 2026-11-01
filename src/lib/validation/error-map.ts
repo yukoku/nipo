@@ -30,6 +30,9 @@ function messageFor(issue: Issue, label: string): string {
       return `${label}の形式が正しくありません`
     case 'unrecognized_keys':
       return `${label}に不明な項目（${issue.keys.join('、')}）が含まれています`
+    case 'invalid_value':
+      // 選択肢（enum）の項目がない・null のときも「必須」として扱う（M-02）
+      return issue.input === undefined || issue.input === null ? `${label}は必須です` : `${label}の値が正しくありません`
     default:
       return `${label}の値が正しくありません`
   }

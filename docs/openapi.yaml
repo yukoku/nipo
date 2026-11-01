@@ -218,6 +218,102 @@ components:
         - is_active
         - created_at
         - updated_at
+    SalesStaff:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        department:
+          type:
+            - string
+            - "null"
+        role:
+          $ref: "#/components/schemas/Role"
+        manager:
+          type:
+            - object
+            - "null"
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+          description: 上長。未設定なら null
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          example: 2026-04-01T10:00:00+09:00
+        updated_at:
+          type: string
+          example: 2026-04-01T10:00:00+09:00
+      required:
+        - id
+        - name
+        - email
+        - department
+        - role
+        - manager
+        - is_active
+        - created_at
+        - updated_at
+    SalesStaffDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        department:
+          type:
+            - string
+            - "null"
+        role:
+          $ref: "#/components/schemas/Role"
+        manager:
+          type:
+            - object
+            - "null"
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+          description: 上長。未設定なら null
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          example: 2026-04-01T10:00:00+09:00
+        updated_at:
+          type: string
+          example: 2026-04-01T10:00:00+09:00
+        subordinate_count:
+          type: integer
+          description: "直属の部下の人数（有効な人だけ。決定事項 #17）。SC-08 の無効化の警告（M-11）に使う"
+      required:
+        - id
+        - name
+        - email
+        - department
+        - role
+        - manager
+        - is_active
+        - created_at
+        - updated_at
+        - subordinate_count
     Health:
       type: object
       properties:
@@ -712,6 +808,390 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /sales-staff:
+    get:
+      operationId: S-01
+      summary: S-01 営業一覧取得
+      description: 部署の昇順（部署なしは最後）→ 氏名の昇順。管理者は全員、上長は自分と直属の部下だけ、営業は 403
+      tags:
+        - 営業マスタ
+      security:
+        - sessionCookie: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            default: 1
+            description: ページ番号（初期値 1）
+          required: false
+          description: ページ番号（初期値 1）
+          name: page
+          in: query
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            description: 1ページの件数（初期値 20、最大 100）
+          required: false
+          description: 1ページの件数（初期値 20、最大 100）
+          name: per_page
+          in: query
+        - schema:
+            type: string
+            maxLength: 50
+            description: 氏名の部分一致
+          required: false
+          description: 氏名の部分一致
+          name: name
+          in: query
+        - schema:
+            type: string
+            maxLength: 50
+            description: 部署の完全一致
+          required: false
+          description: 部署の完全一致
+          name: department
+          in: query
+        - schema:
+            type: string
+            enum:
+              - sales
+              - manager
+              - admin
+            description: ロールで絞り込む（SC-08 の上長セレクトでは manager）
+          required: false
+          description: ロールで絞り込む（SC-08 の上長セレクトでは manager）
+          name: role
+          in: query
+        - schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+            default: "false"
+            description: "`true` で無効な担当者も含める"
+          required: false
+          description: "`true` で無効な担当者も含める"
+          name: include_inactive
+          in: query
+      responses:
+        "200":
+          description: 営業の一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SalesStaff"
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+                required:
+                  - data
+                  - meta
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: S-02
+      summary: S-02 営業登録
+      description: 管理者のみ。`is_active = true` で登録する。メールアドレスは小文字にそろえて保存し、大文字・小文字を区別せずに重複を確かめる。`Location` ヘッダーに作成した営業の URL を付ける
+      tags:
+        - 営業マスタ
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  description: 氏名
+                  example: 山田太郎
+                email:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: メールアドレス（ログイン ID）。小文字にそろえて保存する
+                  example: yamada@example.com
+                department:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 50
+                  description: 部署（フリーテキスト）
+                  example: 営業1課
+                role:
+                  $ref: "#/components/schemas/Role"
+                manager_id:
+                  type:
+                    - integer
+                    - "null"
+                  minimum: 1
+                  maximum: 2147483647
+                  description: 上長の ID。有効な上長（manager）であること。未設定なら null
+                  example: 1
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 64
+                  pattern: "[A-Za-z]"
+                  description: 8〜64 文字。英字と数字をそれぞれ 1 文字以上含む
+                  example: Passw0rd
+              required:
+                - name
+                - email
+                - role
+                - password
+      responses:
+        "201":
+          description: 登録した営業
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SalesStaff"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 一意制約違反・編集できない状態（`CONFLICT`）。理由は `reason`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /sales-staff/{id}:
+    get:
+      operationId: S-03
+      summary: S-03 営業詳細取得
+      description: 管理者のみ。直属の部下の人数（有効な人だけ）を含める
+      tags:
+        - 営業マスタ
+      security:
+        - sessionCookie: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: ID
+            example: 10
+          required: true
+          description: ID
+          name: id
+          in: path
+      responses:
+        "200":
+          description: 営業
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SalesStaffDetail"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: S-04
+      summary: S-04 営業更新
+      description: 管理者のみ。S-02 の項目と `is_active` で置き換える（`password` は省略・空文字なら変更しない）。自分自身・自分の配下を上長にする、管理者が自分を無効化・権限変更するのは 400。有効な部下がいる人の権限を「上長」以外に変えるのは 409。無効にすると、その人のセッションをすべて削除する
+      tags:
+        - 営業マスタ
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: ID
+            example: 10
+          required: true
+          description: ID
+          name: id
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  description: 氏名
+                  example: 山田太郎
+                email:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: メールアドレス（ログイン ID）。小文字にそろえて保存する
+                  example: yamada@example.com
+                department:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 50
+                  description: 部署（フリーテキスト）
+                  example: 営業1課
+                role:
+                  $ref: "#/components/schemas/Role"
+                manager_id:
+                  type:
+                    - integer
+                    - "null"
+                  minimum: 1
+                  maximum: 2147483647
+                  description: 上長の ID。有効な上長（manager）であること。未設定なら null
+                  example: 1
+                password:
+                  type:
+                    - string
+                    - "null"
+                  minLength: 8
+                  maxLength: 64
+                  pattern: "[A-Za-z]"
+                  description: 新しいパスワード。省略・空文字・null なら変更しない
+                  example: Passw0rd
+                is_active:
+                  type: boolean
+                  description: 有効なら true。無効にするとログインできなくなり、その人のセッションはすべて削除される
+              required:
+                - name
+                - email
+                - role
+                - is_active
+      responses:
+        "200":
+          description: 更新後の営業
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SalesStaff"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 一意制約違反・編集できない状態（`CONFLICT`）。理由は `reason`
           content:
             application/json:
               schema:
