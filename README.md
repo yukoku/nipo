@@ -154,3 +154,24 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 
 - 作業は Issue 単位で行い、Issue ごとにブランチを切って Pull Request を作成します
 - ブランチ名・コミットメッセージ・PR の規約は [CLAUDE.md の「開発ルール」](CLAUDE.md) を参照してください
+
+## CI（GitHub Actions）
+
+Pull Request と `main` への push のたびに、[.github/workflows/ci.yml](.github/workflows/ci.yml) が次の順に実行されます。1つでも失敗すると CI は失敗します。
+
+| # | 内容 | コマンド |
+|---|---|---|
+| 1 | 依存パッケージのインストール（Prisma Client の生成を含む） | `npm ci` |
+| 2 | Prisma スキーマの検証 | `npx prisma validate` |
+| 3 | Lint | `npm run lint` |
+| 4 | 型チェック | `npm run typecheck` |
+| 5 | マイグレーションの適用（空の DB に適用できるか） | `npx prisma migrate deploy` |
+| 6 | マイグレーションの作り忘れの確認 | `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code` |
+| 7 | テスト | `npm test` |
+| 8 | OpenAPI 定義（`docs/openapi.yaml`）が最新かの確認 | `npm run openapi:generate` の後、差分がないこと |
+| 9 | ビルド | `npm run build` |
+
+- テスト用の DB は、PostgreSQL 17 のサービスコンテナを使います（接続先は `.env.test` と同じ）
+- **6 で失敗したとき**：`prisma/schema.prisma` を変えたのにマイグレーションを作っていません。`npm run db:migrate -- --name <変更内容>` でマイグレーションを作ってコミットしてください
+- **8 で失敗したとき**：API の Zod スキーマを変えたのに OpenAPI 定義を更新していません。`npm run openapi:generate` を実行して、`docs/openapi.yaml` をコミットしてください
+- PR を出す前にローカルで確認するときは、1〜4・7・9 を実行すれば十分です（5・6 は空の DB が必要なため CI に任せてかまいません）
