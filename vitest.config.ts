@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 
+import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
@@ -13,8 +14,13 @@ export default defineConfig({
     },
   },
   test: {
-    // 本番（Cloud Run）と同じく UTC で動かし、JST への変換漏れをテストで検出できるようにする
-    env: { TZ: 'UTC' },
+    env: {
+      // .env → .env.test → .env.test.local の順に読み込む（後ろが優先）。
+      // これにより DATABASE_URL はテスト用DB（nipo_test）を指す
+      ...loadEnv('test', process.cwd(), ''),
+      // 本番（Cloud Run）と同じく UTC で動かし、JST への変換漏れをテストで検出できるようにする
+      TZ: 'UTC',
+    },
     projects: [
       {
         test: {
