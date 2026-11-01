@@ -51,7 +51,7 @@ src/
 ## データ取得の方針
 - **表示（読み取り）**：Server Component から `src/server/services` の関数を直接呼ぶ。自分の REST API を HTTP で呼び出さない（無駄な通信と二重の認証処理を避けるため）
 - **登録・更新・削除**：Client Component から REST API（`/api/v1/...`）を呼ぶ。入力チェックは API 側で Zod スキーマにより必ず行い、画面側でも同じスキーマで事前にチェックする
-- 画面から API を呼ぶときは `api.get / post / put / delete`（`@/lib/api-client`）を使い、`fetch` を直接使わない。更新系には CSRF トークンが自動で付く（トークンが古ければ取り直して 1 回だけ再送する）。エラーは `ApiClientError`（`status`・`code`・`reason`・`details`）で投げられる。ログイン API で受け取ったトークンは `setCsrfToken()` で入れ、ログアウトしたら `setCsrfToken(null)` で消す
+- 画面から API を呼ぶときは `api.get / post / put / delete`（`@/lib/api-client`）を使い、`fetch` を直接使わない。更新系には CSRF トークンが自動で付く（トークンが古ければ取り直して 1 回だけ再送する。ログイン API だけはトークンを付けない）。エラーは `ApiClientError`（`status`・`code`・`reason`・`details`）で投げられる。ログイン API で受け取ったトークンは `setCsrfToken()` で入れ、ログアウトしたら `setCsrfToken(null)` で消す
 - Server Actions は使わない（API 仕様書・OpenAPI 定義と別の入口ができ、権限チェックの漏れにつながるため）
 - 権限チェックは services の中で行う（画面・API のどちらから呼ばれても同じ判定になるようにする）
 
