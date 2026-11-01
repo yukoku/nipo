@@ -1,9 +1,15 @@
 import 'server-only'
 
-import type { ApiErrorBody, ApiErrorCode, ConflictReason, ValidationErrorDetail } from '@/schemas/api-error'
+import type {
+  ApiErrorBody,
+  ApiErrorCode,
+  ConflictReason,
+  ForbiddenReason,
+  ValidationErrorDetail,
+} from '@/schemas/api-error'
 
 // 型の定義元は Zod スキーマ（`@/schemas/api-error`。OpenAPI の ErrorResponse と同じ）
-export type { ApiErrorBody, ApiErrorCode, ConflictReason, ValidationErrorDetail }
+export type { ApiErrorBody, ApiErrorCode, ConflictReason, ForbiddenReason, ValidationErrorDetail }
 
 /**
  * API で返すエラーの基底クラス。services などで throw すると、`withApi()` がエラーレスポンスに変換する。
@@ -57,9 +63,22 @@ export class ForbiddenError extends ApiError {
   readonly status = 403
   readonly code = 'FORBIDDEN'
 
-  constructor(message = 'この操作を行う権限がありません') {
+  /**
+   * @param message 画面に表示するメッセージ
+   * @param reason 理由。CSRF トークン・Origin の確認に失敗したときだけ `CSRF_TOKEN_INVALID` を付ける（決定事項 #27）
+   */
+  constructor(
+    message = 'この操作を行う権限がありません',
+    readonly reason?: ForbiddenReason,
+  ) {
     super(message)
     this.name = 'ForbiddenError'
+  }
+
+  override toBody(): ApiErrorBody {
+    return this.reason === undefined
+      ? super.toBody()
+      : { error: { code: this.code, reason: this.reason, message: this.message } }
   }
 }
 

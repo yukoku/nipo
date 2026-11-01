@@ -18,6 +18,13 @@ export const conflictReasonSchema = z
   .enum(['REPORT_ALREADY_EXISTS', 'REPORT_LOCKED', 'REPORT_NOT_DRAFT', 'EMAIL_ALREADY_EXISTS'])
   .meta({ id: 'ConflictReason', description: '409 のときだけ返す理由。画面はこれで表示を切り替える。理由を区別する必要がない 409 では省略' })
 
+/** 403 の理由（決定事項 #27）。権限不足の 403 と区別するために使う */
+export const forbiddenReasonSchema = z.enum(['CSRF_TOKEN_INVALID']).meta({
+  id: 'ForbiddenReason',
+  description:
+    'CSRF トークン・Origin の確認に失敗した 403 のときだけ返す。画面の API クライアントは、トークンを取り直して 1 回だけ再送する。権限不足の 403 では省略',
+})
+
 /** 入力チェックエラーの項目別メッセージ */
 export const validationErrorDetailSchema = z
   .object({
@@ -35,8 +42,8 @@ export const apiErrorBodySchema = z
     error: z.object({
       code: apiErrorCodeSchema,
       message: z.string().meta({ description: '画面にそのまま表示できるメッセージ', example: '入力内容に誤りがあります' }),
-      // 409 のときだけ。理由を区別する必要がない 409 では省略（説明は ConflictReason に書く）
-      reason: conflictReasonSchema.optional(),
+      // 409 と、CSRF による 403 のときだけ。説明は ConflictReason・ForbiddenReason に書く
+      reason: z.union([conflictReasonSchema, forbiddenReasonSchema]).optional(),
       details: z.array(validationErrorDetailSchema).optional().meta({ description: '400 のときだけ。項目別のメッセージ' }),
     }),
   })
@@ -44,5 +51,6 @@ export const apiErrorBodySchema = z
 
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>
 export type ConflictReason = z.infer<typeof conflictReasonSchema>
+export type ForbiddenReason = z.infer<typeof forbiddenReasonSchema>
 export type ValidationErrorDetail = z.infer<typeof validationErrorDetailSchema>
 export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>
