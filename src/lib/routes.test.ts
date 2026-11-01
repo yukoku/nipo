@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LOGIN_PATH, homePathForRole, loginPath, safeRedirectPath } from './routes'
+import { LOGIN_PATH, homePathForRole, isNavItemActive, loginPath, navItemsForRole, safeRedirectPath } from './routes'
 
 describe('homePathForRole', () => {
   it('営業・上長は日報一覧、管理者は顧客一覧（T-UI-01）', () => {
@@ -47,5 +47,30 @@ describe('loginPath', () => {
     expect(loginPath()).toBe(LOGIN_PATH)
     expect(loginPath('/')).toBe(LOGIN_PATH)
     expect(loginPath('//evil.example')).toBe(LOGIN_PATH)
+  })
+})
+
+describe('navItemsForRole（T-UI-03）', () => {
+  it('営業・上長は「日報一覧」のみ', () => {
+    expect(navItemsForRole('SALES')).toEqual([{ label: '日報一覧', href: '/reports' }])
+    expect(navItemsForRole('MANAGER')).toEqual([{ label: '日報一覧', href: '/reports' }])
+  })
+
+  it('管理者は「顧客」「営業」のみ', () => {
+    expect(navItemsForRole('ADMIN').map((item) => item.label)).toEqual(['顧客', '営業'])
+  })
+})
+
+describe('isNavItemActive', () => {
+  const reports = { label: '日報一覧', href: '/reports' }
+
+  it('その画面と配下の画面で true', () => {
+    expect(isNavItemActive(reports, '/reports')).toBe(true)
+    expect(isNavItemActive(reports, '/reports/101/edit')).toBe(true)
+  })
+
+  it('名前が前方一致するだけの別の画面では false', () => {
+    expect(isNavItemActive(reports, '/reports-archive')).toBe(false)
+    expect(isNavItemActive(reports, '/customers')).toBe(false)
   })
 })

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Noto_Sans_JP } from 'next/font/google'
 import type { ReactNode } from 'react'
 
+import { AppProviders } from '@/components/app-providers'
 import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
 
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="ja" className={cn('font-sans antialiased', notoSansJp.variable)}>
       <body>
-        {children}
+        <AppProviders>{children}</AppProviders>
         {/* ライトモードのみで運用するため、OS のダークモード設定に引きずられないよう固定する */}
         <Toaster theme="light" position="top-center" richColors />
       </body>

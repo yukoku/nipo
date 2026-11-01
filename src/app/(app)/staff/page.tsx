@@ -9,9 +9,9 @@ export default async function StaffPage() {
   await requirePageRole('ADMIN')
 
   return (
-    <main className="p-4">
+    <div className="space-y-2">
       <h1 className="text-2xl font-bold">営業一覧</h1>
       <p className="text-muted-foreground">準備中です。</p>
-    </main>
+    </div>
   )
 }
