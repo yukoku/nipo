@@ -54,21 +54,26 @@ cp .env.example .env
 # 4. PostgreSQL（開発用DB・テスト用DB）を起動する
 docker compose up -d --wait
 
-# 5. 動作を確認する
+# 5. 開発用DB にテーブルを作る（マイグレーションを適用する）
+npm run db:migrate
+
+# 6. 動作を確認する
 npm run lint            # ESLint がエラーなく終わること
 npm run typecheck       # 型エラーがないこと
 npm test                # テストがすべて通ること
 npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と表示されること
 
-# 6. 開発サーバーを起動する
+# 7. 開発サーバーを起動する
 npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
 開発サーバーで http://localhost:3000/dev/ui-sample を開くと、UI 部品（shadcn/ui）の見た目と動作を確認できます（本番環境では 404 になります）。
 
+アプリから DB を使うときは、`src/server/db/prisma.ts` の `prisma` を import します（`import { prisma } from '@/server/db/prisma'`）。接続数の上限は環境変数 `DATABASE_POOL_MAX`（既定 10）で変えられます。
+
 Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm を使っている場合は `nvm use` で切り替えられます。
 
-テーブルの作成（マイグレーション）とテストデータの投入の手順は、[#8](https://github.com/yukoku/nipo/issues/8)・[#14](https://github.com/yukoku/nipo/issues/14) の対応に合わせてこの節に追記します。
+テストデータの投入の手順は、[#14](https://github.com/yukoku/nipo/issues/14) の対応に合わせてこの節に追記します。
 
 ## ローカルの DB
 
@@ -107,12 +112,17 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 | `npm test` | Vitest でテストを全件実行する |
 | `npm run test:watch` | ファイルの変更を監視しながらテストを実行する |
 | `npm run test:coverage` | カバレッジ付きでテストを実行する（レポートは `coverage/index.html`） |
+| `npm run db:migrate` | スキーマの変更からマイグレーションを作り、開発用DBに適用する（`prisma migrate dev`） |
+| `npm run db:deploy` | 未適用のマイグレーションを DB に適用する（`prisma migrate deploy`。本番・テスト用DBで使う） |
+| `npm run db:reset` | DB を空にして、マイグレーションを最初から適用し直す（データはすべて消える） |
+| `npm run db:studio` | Prisma Studio（ブラウザで DB の中身を見る・編集するツール）を起動する |
+
+`npm install` / `npm ci` の後には、`postinstall` で `prisma generate` が自動で実行され、Prisma Client が `generated/prisma/` に生成されます（Git 管理外）。`prisma/schema.prisma` を変えたときは `npm run db:migrate` で Client も作り直されます。
 
 今後、次のコマンドを追加する予定です。
 
 | コマンド | 内容 | 追加する Issue |
 |---|---|---|
-| `npm run db:migrate` / `db:deploy` / `db:reset` / `db:studio` | Prisma のマイグレーション・DB 操作 | [#8](https://github.com/yukoku/nipo/issues/8) |
 | `npm run openapi:generate` | Zod スキーマから OpenAPI 定義を出力 | [#11](https://github.com/yukoku/nipo/issues/11) |
 
 ## ディレクトリ構成
@@ -128,7 +138,9 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 ├── compose.yaml          # ローカルの PostgreSQL（docker compose）
 ├── docs/                 # 仕様書
 ├── prisma/
-│   └── schema.prisma     # DB スキーマ
+│   ├── schema.prisma     # DB スキーマ
+│   └── migrations/       # マイグレーション（npm run db:migrate で生成）
+├── generated/prisma/     # Prisma Client（自動生成・Git 管理外。import は `@/generated/prisma/client`）
 ├── next.config.ts        # Next.js の設定（Cloud Run 向けに standalone 出力）
 ├── tsconfig.json         # TypeScript の設定（strict、パスエイリアス @/* → src/*）
 ├── prisma.config.ts      # Prisma CLI の設定（DB 接続先は環境変数 DATABASE_URL）
