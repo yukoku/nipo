@@ -31,6 +31,14 @@ const eslintConfig = defineConfig([
     },
   },
 
+  // shadcn/ui が生成する部品。`npx shadcn add` で上書き更新するため手で直さず、書き方のルールだけ緩める
+  {
+    files: ['src/components/ui/**'],
+    rules: {
+      eqeqeq: 'off',
+    },
+  },
+
   // 除外対象
   globalIgnores([
     '.next/**',

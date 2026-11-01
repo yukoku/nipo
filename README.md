@@ -60,6 +60,8 @@ npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と�
 npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
+開発サーバーで http://localhost:3000/dev/ui-sample を開くと、UI 部品（shadcn/ui）の見た目と動作を確認できます（本番環境では 404 になります）。
+
 `npx prisma validate` は DB に接続しないため、DB を用意していなくても `.env` があれば実行できます。
 
 Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm を使っている場合は `nvm use` で切り替えられます。
@@ -90,7 +92,10 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 ```
 .
 ├── src/
-│   └── app/              # 画面（App Router）と API（app/api/v1/）
+│   ├── app/              # 画面（App Router）と API（app/api/v1/）
+│   ├── components/ui/    # shadcn/ui の部品（npx shadcn add で生成）
+│   └── lib/utils.ts      # cn()（クラス名の結合）
+├── components.json       # shadcn/ui の設定
 ├── docs/                 # 仕様書
 ├── prisma/
 │   └── schema.prisma     # DB スキーマ
