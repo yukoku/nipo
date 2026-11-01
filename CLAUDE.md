@@ -63,6 +63,16 @@ src/
 - Prisma の `@db.Date`・`@db.Time` 列への保存・読み込みは、必ず `dateStringToDbDate()`・`dbDateToDateString()`・`timeStringToDbTime()`・`dbTimeToTimeString()` を通す（`new Date('2026-11-05T00:00:00+09:00')` をそのまま保存すると、前日の 11/4 になる）
 - 「今日」は `todayInJst()`、未来日の判定は `isFutureDate()`、当月1日は `startOfMonthInJst()` を使う
 
+## API の実装
+- Route Handler は `withApi()`（`@/server/api/with-api`）で包む。例外は docs/api.md §1.5 の形式に変換され、想定外の例外は 500 `INTERNAL_ERROR`（詳細はログにだけ出す）になる
+- エラーは `@/server/api/errors` のクラスを throw する（`ValidationError`・`UnauthenticatedError`・`ForbiddenError`・`NotFoundError`・`ConflictError`（理由 `reason` 付き）・`TooManyAttemptsError`）。`NextResponse.json()` でエラーを直接返さない
+- 入力は `parseJsonBody()`・`parseSearchParams()`（`@/server/api/validation`）で読む。Zod スキーマは API と同じ snake_case のキーで書き、結果は camelCase で受け取る。`schema.parse()` を直接使うとエラーメッセージが日本語にならない
+- レスポンスは `ok()`・`okList()`・`created()`・`noContent()`（`@/server/api/response`）で返す。services からは camelCase のまま渡し、snake_case への変換はここに任せる（変換は `@/lib/case` の1か所だけ）
+- エラーメッセージの項目名は `@/lib/validation/field-labels` の辞書で決まる。新しい項目を足したら辞書にも追加する。API ごとに名前が違う項目（`name` など）は `labels` で上書きする
+- フォームでも同じメッセージを出すには、`zodResolver(schema, { error: createErrorMap() })`（`@/lib/validation/error-map`）とする
+- 一覧 API のクエリは `paginationQuerySchema`（`@/schemas/pagination`）を `.extend()` して作り、`toPrismaPagination()`・`buildPageMeta()`（`@/server/api/pagination`）を使う
+- ログは `logger`（`@/server/logger`）で出す（Cloud Logging 用の構造化 JSON）。`console.log` は使わない
+
 ## UI
 - 部品は shadcn/ui を使う。足りない部品は `npx shadcn@latest add <名前>` で追加する（`src/components/ui/` に生成される）
 - `src/components/ui/` のファイルは手で書き換えない。見た目を変えたいときは、使う側で `className` を渡すか、`src/components/` に包む部品を作る
