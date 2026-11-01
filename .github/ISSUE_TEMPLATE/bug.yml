@@ -1,0 +1,57 @@
+name: バグ報告
+description: 仕様どおりに動かない不具合を報告する
+title: "[バグ] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: どんな不具合か
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: 発生箇所
+      description: 画面ID・API・テストIDなど（例：SC-03、POST /api/v1/reports、T-RPT-09）
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: ログインしたユーザー（例：yamada）も書く
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待される結果
+      description: 仕様書の該当箇所があれば書く
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の結果
+      description: エラーメッセージ・スクリーンショット・ログなど
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 環境
+      options:
+        - ローカル
+        - ステージング
+        - 本番
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: ブラウザ・端末
+      placeholder: 例：Chrome 最新版 / iPhone Safari
