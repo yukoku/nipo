@@ -60,6 +60,9 @@
 | 項目 | 内容 |
 |---|---|
 | 利用端末 | PC ブラウザ、スマートフォンブラウザ（外出先からの入力を想定） |
+| 実行環境 | Google Cloud Run（アプリ）+ Cloud SQL for PostgreSQL（DB）。リージョンは asia-northeast1（東京） |
+| タイムゾーン | 業務上の日付・時刻は Asia/Tokyo（JST）を基準とする。サーバーは UTC で動くため、「今日」「未来日」の判定はアプリで JST に変換して行う |
+| 可用性 | Cloud Run は複数インスタンスで動き、インスタンスは随時入れ替わる。そのためセッションやログイン失敗回数などの状態はメモリに持たず、DB に保存する |
 | 想定規模 | 営業 200 人、日報 1 日あたり約 200 件（5 年で日報約 25 万件・訪問記録約 75 万件） |
 | 性能 | 一覧画面の表示は 2 秒以内 |
 | セキュリティ | 通信の HTTPS 化、パスワードのハッシュ化保存、ログイン試行回数の制限（F-33） |
@@ -67,74 +70,111 @@
 
 ## 5. ER 図
 
+物理名はテーブル名・カラム名（snake_case）で記載する。Prisma スキーマ（`prisma/schema.prisma`）ではモデル名・フィールド名を PascalCase / camelCase とし、`@@map` / `@map` でこの物理名に対応づける。
+
 ```mermaid
 erDiagram
-    SALES_STAFF ||--o{ SALES_STAFF : "上長として管理する"
+    SALES_STAFF |o--o{ SALES_STAFF : "上長として管理する"
     SALES_STAFF ||--o{ DAILY_REPORT : "作成する"
     DAILY_REPORT ||--o{ VISIT_RECORD : "含む"
     CUSTOMER ||--o{ VISIT_RECORD : "訪問される"
-    SALES_STAFF ||--o{ CUSTOMER : "担当する"
+    SALES_STAFF |o--o{ CUSTOMER : "担当する"
     DAILY_REPORT ||--o{ COMMENT : "付けられる"
     SALES_STAFF ||--o{ COMMENT : "投稿する"
+    SALES_STAFF ||--o{ SESSION : "ログインする"
 
     SALES_STAFF {
-        bigint id PK
-        string name "氏名"
-        string email UK "ログインID"
-        string password_hash
-        string department "部署"
-        string role "sales / manager / admin"
-        bigint manager_id FK "上長ID（自己参照）"
-        boolean is_active
-        datetime created_at
-        datetime updated_at
+        int id PK
+        varchar name "氏名 50文字"
+        varchar email UK "ログインID 255文字"
+        varchar password_hash "255文字"
+        varchar department "部署 50文字 NULL可"
+        enum role "sales / manager / admin 既定 sales"
+        int manager_id FK "上長ID 自己参照 NULL可"
+        boolean is_active "既定 true"
+        timestamp created_at
+        timestamp updated_at
     }
 
     CUSTOMER {
-        bigint id PK
-        string name "顧客名（会社名）"
-        string contact_person "先方担当者名"
-        string phone
-        string address
-        bigint assigned_sales_id FK "担当営業"
-        boolean is_active
-        datetime created_at
-        datetime updated_at
+        int id PK
+        varchar name "顧客名 100文字"
+        varchar contact_person "先方担当者名 50文字 NULL可"
+        varchar phone "20文字 NULL可"
+        varchar address "200文字 NULL可"
+        int assigned_sales_id FK "担当営業 NULL可"
+        boolean is_active "既定 true"
+        timestamp created_at
+        timestamp updated_at
     }
 
     DAILY_REPORT {
-        bigint id PK
-        bigint sales_staff_id FK "UK(sales_staff_id, report_date)"
+        int id PK
+        int sales_staff_id FK "UK sales_staff_id と report_date の組"
         date report_date "報告日"
-        text problem "課題・相談"
-        text plan "明日やること"
-        string status "draft / submitted"
-        datetime submitted_at
-        datetime created_at
-        datetime updated_at
+        text problem "課題・相談 NULL可"
+        text plan "明日やること NULL可"
+        enum status "draft / submitted 既定 draft"
+        timestamp submitted_at "NULL可"
+        timestamp created_at
+        timestamp updated_at
     }
 
     VISIT_RECORD {
-        bigint id PK
-        bigint daily_report_id FK
-        bigint customer_id FK
-        time visited_at "訪問時刻（任意）"
+        int id PK
+        int daily_report_id FK
+        int customer_id FK
+        time visited_at "訪問時刻 NULL可"
         text content "訪問内容"
-        int sort_order "表示順"
-        datetime created_at
-        datetime updated_at
+        int sort_order "表示順 1始まり"
+        timestamp created_at
+        timestamp updated_at
     }
 
     COMMENT {
-        bigint id PK
-        bigint daily_report_id FK
-        bigint commenter_id FK "コメントした上長"
-        string target "problem / plan"
+        int id PK
+        int daily_report_id FK
+        int commenter_id FK "コメントした上長"
+        enum target "problem / plan"
         text body "コメント本文"
-        datetime created_at
-        datetime updated_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    SESSION {
+        int id PK
+        varchar token_hash UK "Cookie値のSHA-256"
+        int sales_staff_id FK
+        varchar csrf_token
+        timestamp expires_at
+        timestamp created_at
+    }
+
+    LOGIN_ATTEMPT {
+        varchar email PK "小文字に正規化"
+        int failed_count "連続失敗回数"
+        timestamp locked_until "NULL可"
+        timestamp last_failed_at
     }
 ```
+
+### テーブルの実装状況
+
+| テーブル | Prisma モデル | 状況 |
+|---|---|---|
+| `sales_staff` / `customers` / `daily_reports` / `visit_records` / `comments` | `SalesStaff` / `Customer` / `DailyReport` / `VisitRecord` / `Comment` | `prisma/schema.prisma` に定義済み |
+| `sessions` | `Session` | Issue #16 で追加する |
+| `login_attempts` | `LoginAttempt` | Issue #43 で追加する（決定事項 #18） |
+
+### 削除時の動作（外部キー）
+
+| 親 → 子 | 親を削除したとき |
+|---|---|
+| 日報 → 訪問記録・コメント | 子も削除する（Cascade） |
+| 営業 → 日報・コメント・部下 | 子が残っていれば削除できない（Restrict）。マスタは論理削除で運用する |
+| 営業 → 担当顧客 | 顧客の担当営業を NULL にする（SetNull） |
+| 顧客 → 訪問記録 | 訪問記録が残っていれば削除できない（Restrict） |
+| 営業 → セッション | セッションも削除する（Cascade） |
 
 ### 設計上のポイント
 
@@ -142,6 +182,9 @@ erDiagram
 - **Problem / Plan は日報本体のカラム**：1日1つずつの記入なので `DAILY_REPORT` に持たせる。
 - **コメントは `target` で対象を区別**：Problem 用・Plan 用でテーブルを分けず、1テーブル + 区分カラムでシンプルにした。
 - **上長は営業マスタの自己参照**：`SALES_STAFF.manager_id` で上下関係を表す。上長も日報を書ける。
+- **ID は int**：BigInt は JavaScript では `bigint` 型になり、そのままでは JSON に変換できないため。int の上限（約21億）は想定規模（日報約25万件）に対して十分。
+- **セッションは DB に保存**：Cloud Run は複数インスタンスで動くため。Cookie にはランダムなトークンを入れ、DB にはそのハッシュだけを保存する（DB が漏えいしてもセッションを乗っ取られないようにする）。
+- **ログイン失敗回数はメールアドレス単位**：存在しないメールアドレスも同じように記録・ロックし、アカウントの有無を推測させない（決定事項 #18）。営業マスタとは外部キーでつながない。
 
 ## 6. 決定事項
 
