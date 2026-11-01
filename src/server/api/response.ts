@@ -35,9 +35,9 @@ export function created<T>(data: T, location?: string): NextResponse<DataBody<T>
   )
 }
 
-/** 204：本文なし */
-export function noContent(): Response {
-  return new Response(null, { status: 204, headers: NO_STORE })
+/** 204：本文なし（Cookie を設定・削除できるよう NextResponse で返す。例：ログアウト） */
+export function noContent(): NextResponse<null> {
+  return new NextResponse(null, { status: 204, headers: NO_STORE })
 }
 
 /** エラーレスポンス（docs/api.md §1.5） */

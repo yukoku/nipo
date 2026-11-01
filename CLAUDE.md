@@ -81,7 +81,8 @@ src/
 - ログイン中のユーザーは `getCurrentUser()`（Server Component）で取得する
 - ログイン API（セッションがまだない）では、`verifyOrigin(request)`（`@/server/auth/csrf`）で Origin だけを確かめる
 - ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
-- Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy で行う（`session.renewed` が true のとき `setSessionCookie()`。決定事項 #26）
+- Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
+- ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()` を使う
 
 ## パスワード
 - パスワードは `hashPassword()`（`@/server/auth/password`）でハッシュ化して保存する。平文をログ・DB・レスポンスに出さない
@@ -125,6 +126,7 @@ src/
   - **各テストの前に、テスト用DB をテストデータの状態に戻す**（`src/test/api/setup-api.ts`）。テストの中でデータを変えても次のテストには残らないので、テストは実行順に依存しないように書く
   - DB 名が `_test` で終わる接続先でしか動かない（開発用DB を誤って消さないため）
 - Route Handler は `callRoute(GET, '/api/v1/health', { query, body, params, headers })`（`@/test/api/route`）で、HTTP サーバーなしに呼び出す。結果は `{ status, headers, body }`（`body` は JSON を解析した値。204 なら `null`）
+- ログインが必要な API のテストは `const yamada = await loginAs('yamada')`（`@/test/api/auth`）でログイン状態を作り、`callRoute(handler, path, { headers: yamada.headers })` で呼ぶ（`headers` にはセッション Cookie と CSRF トークンが入っている）。ログイン API を通さず DB に直接セッションを作る
 - DB のデータを直接確かめるときは、アプリと同じ `prisma`（`@/server/db/prisma`）を使う
 - git worktree で複数の作業を並行するときは、各作業ディレクトリの `.env.test.local` で別のテスト用DB（例：`nipo_issue15_test`）を指定する。同じテスト用DB を同時に使うと、テスト同士がデータを消し合う
 - 権限判定（`src/server/authz/`）と入力チェック（`src/schemas/`）は分岐網羅 100% が必須。`npm run test:coverage` で下回るとエラーになる

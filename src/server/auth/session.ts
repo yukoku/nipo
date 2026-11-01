@@ -214,6 +214,17 @@ export function clearSessionCookie(target: WritableCookies): void {
   target.set(SESSION_COOKIE_NAME, '', sessionCookieOptions(new Date(0)))
 }
 
+/**
+ * このリクエストで DB の有効期限を延ばしたなら、Cookie の有効期限も同じだけ延ばす（決定事項 #26）。
+ * Route Handler で、レスポンスを返す直前に呼ぶ（`refreshSessionCookie(response.cookies, request, auth)`）
+ */
+export function refreshSessionCookie(target: WritableCookies, request: NextRequest, auth: AuthenticatedSession): void {
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (auth.session.renewed && token !== undefined) {
+    setSessionCookie(target, token, auth.session.expiresAt)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 内部用
 // ---------------------------------------------------------------------------
