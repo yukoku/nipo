@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同じブランチ・PR で新しいコミットが push されたら、実行中の古い CI は止める
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    # ブランチ保護で「必須のチェック」に指定するときは、このジョブ名（ci）を使う
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        # ローカル（compose.yaml）・本番（Cloud SQL）と同じ PostgreSQL 17
+        image: postgres:17
+        env:
+          POSTGRES_USER: nipo
+          POSTGRES_PASSWORD: nipo
+          POSTGRES_DB: nipo_test
+        # .env.test と同じポートにして、ローカルと同じ接続先で動かす
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U nipo -d nipo_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+
+    env:
+      # CI には .env がないため、ここで接続先を渡す（テスト用DB）
+      DATABASE_URL: postgresql://nipo:nipo@localhost:55432/nipo_test
+      NEXT_TELEMETRY_DISABLED: 1
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # postinstall で prisma generate も実行される
+      - name: 依存パッケージのインストール
+        run: npm ci
+
+      - name: Prisma スキーマの検証
+        run: npx prisma validate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      # マイグレーションが空の DB に適用できることも、ここで確認できる
+      - name: マイグレーションの適用
+        run: npx prisma migrate deploy
+
+      # スキーマを変えたのにマイグレーションを作り忘れていたら、差分の SQL を表示して失敗する
+      - name: マイグレーションの作り忘れの確認
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script --exit-code
+
+      - name: テスト
+        run: npm test
+
+      # Zod スキーマから生成する OpenAPI 定義（docs/openapi.yaml）が最新かを確認する。
+      # openapi:generate がまだない場合（#11 の導入前）は何もしない
+      - name: OpenAPI 定義が最新かの確認
+        run: |
+          npm run openapi:generate --if-present
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::生成物がコミットされている内容と一致しません。npm run openapi:generate を実行してコミットしてください。"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+
+      - name: ビルド
+        run: npm run build
