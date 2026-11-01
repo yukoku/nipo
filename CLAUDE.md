@@ -82,7 +82,7 @@ src/
 - ログイン API（セッションがまだない）では、`verifyOrigin(request)`（`@/server/auth/csrf`）で Origin だけを確かめる
 - ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
 - Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy（`src/proxy.ts`。画面へのリクエストのたびに DB を見ずに延ばす。決定事項 #28）で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
-- ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()` を使う
+- ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()`、画面で API の値を DB の値に戻すときは `fromApiRole()`（`@/lib/roles`）を使う
 
 ## 画面のアクセス制御
 - 画面の URL は docs/screens.md §1 のとおり。パスとロールごとのトップ画面は `@/lib/routes`（`LOGIN_PATH`・`homePathForRole()`）を使い、文字列を直接書かない
