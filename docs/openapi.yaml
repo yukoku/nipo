@@ -168,6 +168,56 @@ components:
         - sales
         - manager
         - admin
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contact_person:
+          type:
+            - string
+            - "null"
+        phone:
+          type:
+            - string
+            - "null"
+        address:
+          type:
+            - string
+            - "null"
+        assigned_sales:
+          type:
+            - object
+            - "null"
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+          description: 担当営業。未設定なら null
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          example: 2026-04-01T10:00:00+09:00
+        updated_at:
+          type: string
+          example: 2026-04-01T10:00:00+09:00
+      required:
+        - id
+        - name
+        - contact_person
+        - phone
+        - address
+        - assigned_sales
+        - is_active
+        - created_at
+        - updated_at
     Health:
       type: object
       properties:
@@ -307,6 +357,361 @@ paths:
                   - data
         "401":
           description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /customers:
+    get:
+      operationId: M-01
+      summary: M-01 顧客一覧取得
+      description: 顧客名の昇順。全ロールが使える。管理者以外は `include_inactive` を指定しても無視し、有効な顧客だけを返す（日報入力の顧客選択に使う）
+      tags:
+        - 顧客マスタ
+      security:
+        - sessionCookie: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            default: 1
+            description: ページ番号（初期値 1）
+          required: false
+          description: ページ番号（初期値 1）
+          name: page
+          in: query
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            description: 1ページの件数（初期値 20、最大 100）
+          required: false
+          description: 1ページの件数（初期値 20、最大 100）
+          name: per_page
+          in: query
+        - schema:
+            type: string
+            maxLength: 100
+            description: 顧客名の部分一致
+          required: false
+          description: 顧客名の部分一致
+          name: name
+          in: query
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: 担当営業の ID で絞り込む
+          required: false
+          description: 担当営業の ID で絞り込む
+          name: assigned_sales_id
+          in: query
+        - schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+            default: "false"
+            description: "`true` で無効な顧客も含める。管理者以外は指定しても無視する（常に有効な顧客だけ）"
+          required: false
+          description: "`true` で無効な顧客も含める。管理者以外は指定しても無視する（常に有効な顧客だけ）"
+          name: include_inactive
+          in: query
+      responses:
+        "200":
+          description: 顧客の一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Customer"
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+                required:
+                  - data
+                  - meta
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: M-02
+      summary: M-02 顧客登録
+      description: 管理者のみ。`is_active = true` で登録する。`Location` ヘッダーに作成した顧客の URL を付ける
+      tags:
+        - 顧客マスタ
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: 顧客名
+                  example: ABC商事
+                contact_person:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 50
+                  description: 先方担当者名
+                  example: 田中様
+                phone:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 20
+                  pattern: ^[0-9-]*$
+                  description: 電話番号（数字とハイフンのみ）
+                  example: 03-1234-5678
+                address:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 200
+                  description: 住所
+                  example: 東京都千代田区丸の内1-1-1
+                assigned_sales_id:
+                  type:
+                    - integer
+                    - "null"
+                  minimum: 1
+                  maximum: 2147483647
+                  description: 担当営業の ID。有効な営業・上長であること。未設定なら null
+                  example: 2
+              required:
+                - name
+      responses:
+        "201":
+          description: 登録した顧客
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Customer"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /customers/{id}:
+    get:
+      operationId: M-03
+      summary: M-03 顧客詳細取得
+      description: 管理者のみ
+      tags:
+        - 顧客マスタ
+      security:
+        - sessionCookie: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: ID
+            example: 10
+          required: true
+          description: ID
+          name: id
+          in: path
+      responses:
+        "200":
+          description: 顧客
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Customer"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: M-04
+      summary: M-04 顧客更新
+      description: 管理者のみ。M-02 の項目と `is_active` で置き換える（省略した任意項目は未設定になる）。無効にしても、過去の訪問記録からの参照は残る
+      tags:
+        - 顧客マスタ
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: ID
+            example: 10
+          required: true
+          description: ID
+          name: id
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: 顧客名
+                  example: ABC商事
+                contact_person:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 50
+                  description: 先方担当者名
+                  example: 田中様
+                phone:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 20
+                  pattern: ^[0-9-]*$
+                  description: 電話番号（数字とハイフンのみ）
+                  example: 03-1234-5678
+                address:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 200
+                  description: 住所
+                  example: 東京都千代田区丸の内1-1-1
+                assigned_sales_id:
+                  type:
+                    - integer
+                    - "null"
+                  minimum: 1
+                  maximum: 2147483647
+                  description: 担当営業の ID。有効な営業・上長であること。未設定なら null
+                  example: 2
+                is_active:
+                  type: boolean
+                  description: 有効なら true。無効にした顧客は日報入力の選択肢に出ない
+              required:
+                - name
+                - is_active
+      responses:
+        "200":
+          description: 更新後の顧客
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Customer"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
           content:
             application/json:
               schema:

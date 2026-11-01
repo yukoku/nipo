@@ -43,6 +43,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   check: '確認する項目',
 
   // 共通
+  id: 'ID',
   name: '名前',
   is_active: '状態',
   include_inactive: '無効も表示',

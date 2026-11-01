@@ -5,7 +5,7 @@ export const DEFAULT_PER_PAGE = 20
 export const MAX_PER_PAGE = 100
 
 /** クエリ文字列の空の値（`?page=`）は、指定なしとして扱う */
-const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
+export const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
 
 /**
  * 一覧 API の `page`・`per_page`（docs/api.md §1.4）。
