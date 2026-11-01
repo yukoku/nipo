@@ -54,6 +54,15 @@ src/
 - Server Actions は使わない（API 仕様書・OpenAPI 定義と別の入口ができ、権限チェックの漏れにつながるため）
 - 権限チェックは services の中で行う（画面・API のどちらから呼ばれても同じ判定になるようにする）
 
+## 日付・時刻
+- 業務上の日付・時刻はすべて JST（Asia/Tokyo）基準。サーバーは UTC で動くため、「今日」の判定や表示は必ず JST に変換する
+- **日付・時刻の変換と表示は `@/lib/date` の関数を使う。`toLocaleDateString`・`toLocaleString`・`getDate()`・`getHours()` などを直接使わない**（実行環境のタイムゾーンで結果が変わるため）
+- 2種類の値を区別する
+  - **暦の日付・時刻**（報告日 `report_date`・訪問時刻 `visited_at`）：`YYYY-MM-DD`・`HH:mm` の文字列のまま扱う。タイムゾーンの変換をしない
+  - **瞬間**（`submitted_at`・`created_at` など）：`Date` で扱い、表示は `formatDateTimeForDisplay()`、API のレスポンスは `toApiDateTime()`（`+09:00` 付き）
+- Prisma の `@db.Date`・`@db.Time` 列への保存・読み込みは、必ず `dateStringToDbDate()`・`dbDateToDateString()`・`timeStringToDbTime()`・`dbTimeToTimeString()` を通す（`new Date('2026-11-05T00:00:00+09:00')` をそのまま保存すると、前日の 11/4 になる）
+- 「今日」は `todayInJst()`、未来日の判定は `isFutureDate()`、当月1日は `startOfMonthInJst()` を使う
+
 ## UI
 - 部品は shadcn/ui を使う。足りない部品は `npx shadcn@latest add <名前>` で追加する（`src/components/ui/` に生成される）
 - `src/components/ui/` のファイルは手で書き換えない。見た目を変えたいときは、使う側で `className` を渡すか、`src/components/` に包む部品を作る
