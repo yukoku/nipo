@@ -111,7 +111,13 @@ src/
 - テストは UTC で動く（本番の Cloud Run と同じ）。現在日時を使うテストは `setupFixedTime()`（`@/test/time`）で基準日時 2026-10-31 10:00 JST に固定する
 - `vi.fn()` の呼び出し履歴は各テストの前に自動で消える（Vitest 5 の既定）
 - テストデータ（docs/test-spec.md §2.2）は `src/server/db/seed/data.ts` に定義している。ID は数値を直接書かず、定数で参照する（例：`SEED_STAFF.yamada.id`・`SEED_REPORTS.draft.id`）。テストデータを変えるときは、テスト仕様書も同じ PR で直す
-- DB を使うテストは `seedDatabase(prisma)`（`@/server/db/seed/seed`）でテストデータの状態に戻せる（全テーブルを空にしてから投入する）。`*.api.test.ts` はテスト用DB（`nipo_test`）にマイグレーションが適用されている前提で動く
+- `*.api.test.ts`（`api` プロジェクト）は、テスト用DB を自動で準備する。テストファイルで準備の処理を書く必要はない
+  - 実行前に 1 回だけ、テスト用DB にマイグレーションを適用する（`src/test/api/global-setup.ts`）
+  - **各テストの前に、テスト用DB をテストデータの状態に戻す**（`src/test/api/setup-api.ts`）。テストの中でデータを変えても次のテストには残らないので、テストは実行順に依存しないように書く
+  - DB 名が `_test` で終わる接続先でしか動かない（開発用DB を誤って消さないため）
+- Route Handler は `callRoute(GET, '/api/v1/health', { query, body, params, headers })`（`@/test/api/route`）で、HTTP サーバーなしに呼び出す。結果は `{ status, headers, body }`（`body` は JSON を解析した値。204 なら `null`）
+- DB のデータを直接確かめるときは、アプリと同じ `prisma`（`@/server/db/prisma`）を使う
+- git worktree で複数の作業を並行するときは、各作業ディレクトリの `.env.test.local` で別のテスト用DB（例：`nipo_issue15_test`）を指定する。同じテスト用DB を同時に使うと、テスト同士がデータを消し合う
 - 権限判定（`src/server/authz/`）と入力チェック（`src/schemas/`）は分岐網羅 100% が必須。`npm run test:coverage` で下回るとエラーになる
 - コンポーネントテストは、要素を役割やラベルで取得する（`getByRole`・`getByLabelText`）。クラス名や DOM 構造に依存しない
 
