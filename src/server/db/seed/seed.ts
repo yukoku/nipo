@@ -9,6 +9,9 @@ import { SEED_CUSTOMERS, SEED_PASSWORD, SEED_REPORTS, SEED_STAFF } from './data'
 /** マスタの作成日時（すべて同じ値にして、何度投入しても同じデータになるようにする） */
 const MASTER_CREATED_AT = new Date('2026-04-01T10:00:00+09:00')
 
+/** テストデータのパスワードのハッシュ（計算結果を使い回す） */
+let passwordHashCache: Promise<string> | undefined
+
 /** ID を固定で投入するテーブル。投入後に ID の採番（シーケンス）を最大値まで進める */
 const TABLES_WITH_FIXED_IDS = ['sales_staff', 'customers', 'daily_reports', 'visit_records', 'comments'] as const
 
@@ -21,8 +24,14 @@ const TABLES_WITH_FIXED_IDS = ['sales_staff', 'customers', 'daily_reports', 'vis
  * コマンドからは `npx prisma db seed`（prisma/seed.ts）で実行する。APIテストの初期化（#15）からも呼ぶ。
  */
 export async function seedDatabase(prisma: PrismaClient): Promise<void> {
-  // ハッシュの計算は重い（約 19 MiB・数十ミリ秒）ため、全員共通のパスワードで 1 回だけ計算する
-  const passwordHash = await hashPassword(SEED_PASSWORD)
+  // ハッシュの計算は重い（約 19 MiB・数十ミリ秒）ため、全員共通のパスワードで 1 回だけ計算し、
+  // 2 回目以降の呼び出し（APIテストでは各テストの前に呼ぶ）でも使い回す
+  passwordHashCache ??= hashPassword(SEED_PASSWORD).catch((error: unknown) => {
+    // 失敗した結果を使い回さないよう、次の呼び出しで計算し直す
+    passwordHashCache = undefined
+    throw error
+  })
+  const passwordHash = await passwordHashCache
 
   await prisma.$transaction(async (tx) => {
     await truncateAllTables(tx)

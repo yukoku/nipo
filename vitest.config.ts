@@ -42,11 +42,15 @@ export default defineConfig({
       },
       {
         test: {
-          // Route Handler をテスト用DBに対して呼び出す結合テスト（DB の初期化は #15 で追加する）
+          // Route Handler をテスト用DB（DB 名が _test で終わるもの）に対して呼び出す結合テスト
           name: 'api',
           environment: 'node',
           include: ['src/**/*.api.test.ts'],
-          // テスト用DBを共有するため、ファイルを並列に実行しない
+          // 実行前に 1 回だけ、テスト用DB にマイグレーションを適用する
+          globalSetup: ['./src/test/api/global-setup.ts'],
+          // 各テストの前に、テスト用DB をテストデータの状態に戻す
+          setupFiles: ['./src/test/api/setup-api.ts'],
+          // テスト用DB を共有するため、ファイルを並列に実行しない（同じファイル内のテストも順番に実行される）
           fileParallelism: false,
         },
       },

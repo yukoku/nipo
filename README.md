@@ -58,16 +58,13 @@ docker compose up -d --wait
 npm run db:migrate
 npm run db:seed
 
-# 6. テスト用DB にもテーブルを作る（npm test の APIテストで使う）
-DATABASE_URL=postgresql://nipo:nipo@localhost:55432/nipo_test npm run db:deploy
-
-# 7. 動作を確認する
+# 6. 動作を確認する
 npm run lint            # ESLint がエラーなく終わること
 npm run typecheck       # 型エラーがないこと
-npm test                # テストがすべて通ること
+npm test                # テストがすべて通ること（テスト用DB へのマイグレーションは自動で行われる）
 npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と表示されること
 
-# 8. 開発サーバーを起動する
+# 7. 開発サーバーを起動する
 npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
@@ -121,7 +118,14 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 
 **ポートを変えたいとき**：55432 番も使われている場合は、`.env` の `POSTGRES_PORT` と `DATABASE_URL` のポート番号を書き換えます。テスト用の接続先は `.env.test.local`（Git 管理外）を作り、`DATABASE_URL` を上書きしてください。`.env.test.local` は `.env.test` より優先されます。
 
-**テスト用DB ができていないとき**：`nipo_test` は、ボリュームが空の状態で初めて起動したときだけ作られます。以前に別の手順で起動していた場合は、上の「作り直し」を実行してください。
+**テスト用DB について**：`npm test` を実行すると、APIテスト（`*.api.test.ts`）の前にテスト用DB へマイグレーションが自動で適用され（DB がなければ作られ）、各テストの前にテストデータの状態に戻されます。そのため、テスト用DB のデータは毎回すべて消えます。安全のため、DB 名が `_test` で終わる接続先でしか APIテストは動きません。
+
+**複数の作業ディレクトリ（git worktree）で同時にテストするとき**：すべてが同じ `nipo_test` を使うと、テスト同士がデータを消し合って失敗します。作業ディレクトリごとに `.env.test.local` を作り、別のテスト用DB を指定してください（DB は `npm test` の実行時に自動で作られます）。
+
+```bash
+# 例：issue-15/.env.test.local
+DATABASE_URL="postgresql://nipo:nipo@localhost:55432/nipo_issue15_test"
+```
 
 ## npm scripts
 
