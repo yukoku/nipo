@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { defineConfig, env } from 'prisma/config'
+import { defineConfig } from 'prisma/config'
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -7,6 +7,8 @@ export default defineConfig({
     path: 'prisma/migrations',
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    // `env('DATABASE_URL')` は未設定だと例外になり、DB に接続しない `prisma generate`（postinstall）まで失敗する。
+    // CI や Docker ビルドでは .env がないため、process.env から読む（migrate など DB に接続するコマンドは未設定なら接続エラーになる）
+    url: process.env.DATABASE_URL,
   },
 })
