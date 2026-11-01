@@ -36,7 +36,7 @@
 |---|---|---|
 | Node.js | 22 系 | アプリの実行・ビルド |
 | npm | 10 系（Node.js に同梱） | パッケージ管理 |
-| Docker | Docker Compose が使えるもの | ローカルの PostgreSQL（[#7](https://github.com/yukoku/nipo/issues/7) で導入予定） |
+| Docker | Docker Compose が使えるもの | ローカルの PostgreSQL |
 
 ## セットアップ
 
@@ -48,26 +48,51 @@ cd nipo
 # 2. パッケージをインストールする
 npm ci
 
-# 3. 環境変数ファイルを作る（DATABASE_URL を自分の環境に合わせて書き換える）
+# 3. 環境変数ファイルを作る（そのままで docker compose の DB につながる）
 cp .env.example .env
 
-# 4. 動作を確認する
+# 4. PostgreSQL（開発用DB・テスト用DB）を起動する
+docker compose up -d --wait
+
+# 5. 動作を確認する
 npm run lint            # ESLint がエラーなく終わること
 npm run typecheck       # 型エラーがないこと
 npm test                # テストがすべて通ること
 npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と表示されること
 
-# 5. 開発サーバーを起動する
+# 6. 開発サーバーを起動する
 npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
 開発サーバーで http://localhost:3000/dev/ui-sample を開くと、UI 部品（shadcn/ui）の見た目と動作を確認できます（本番環境では 404 になります）。
 
-`npx prisma validate` は DB に接続しないため、DB を用意していなくても `.env` があれば実行できます。
-
 Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm を使っている場合は `nvm use` で切り替えられます。
 
-ローカル DB の起動、マイグレーション、開発サーバーの起動手順は、各 Issue の対応に合わせてこの節に追記します。
+テーブルの作成（マイグレーション）とテストデータの投入の手順は、[#8](https://github.com/yukoku/nipo/issues/8)・[#14](https://github.com/yukoku/nipo/issues/14) の対応に合わせてこの節に追記します。
+
+## ローカルの DB
+
+`docker compose` で PostgreSQL 17 を1つ起動し、その中に2つの DB を作ります。
+
+| DB 名 | 用途 | 接続先を指定するファイル |
+|---|---|---|
+| `nipo_dev` | 開発用（`npm run dev` など） | `.env`（`.env.example` をコピーして作る。Git 管理外） |
+| `nipo_test` | テスト用（`npm test`） | `.env.test`（リポジトリに含まれる） |
+
+- ユーザー名・パスワードはどちらも `nipo`（ローカル専用）
+- ホスト側のポートは **55432**（PC で別の PostgreSQL が 5432 番を使っていても衝突しないようにするため）
+
+| 操作 | コマンド |
+|---|---|
+| 起動 | `docker compose up -d --wait` |
+| 停止（データは残る） | `docker compose stop` |
+| 状態の確認 | `docker compose ps` |
+| psql で接続 | `docker compose exec db psql -U nipo -d nipo_dev` |
+| 作り直し（**データをすべて削除**） | `docker compose down -v && docker compose up -d --wait` |
+
+**ポートを変えたいとき**：55432 番も使われている場合は、`.env` の `POSTGRES_PORT` と `DATABASE_URL` のポート番号を書き換えます。テスト用の接続先は `.env.test.local`（Git 管理外）を作り、`DATABASE_URL` を上書きしてください。`.env.test.local` は `.env.test` より優先されます。
+
+**テスト用DB ができていないとき**：`nipo_test` は、ボリュームが空の状態で初めて起動したときだけ作られます。以前に別の手順で起動していた場合は、上の「作り直し」を実行してください。
 
 ## npm scripts
 
@@ -99,6 +124,8 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 │   ├── components/ui/    # shadcn/ui の部品（npx shadcn add で生成）
 │   └── lib/utils.ts      # cn()（クラス名の結合）
 ├── components.json       # shadcn/ui の設定
+├── docker/postgres/      # ローカル DB の初期化スクリプト（テスト用DB の作成）
+├── compose.yaml          # ローカルの PostgreSQL（docker compose）
 ├── docs/                 # 仕様書
 ├── prisma/
 │   └── schema.prisma     # DB スキーマ
