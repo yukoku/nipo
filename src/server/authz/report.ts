@@ -1,7 +1,7 @@
-import "server-only";
+import 'server-only'
 
-import type { Prisma, ReportStatus, Role } from "@/generated/prisma/client";
-import { ForbiddenError, NotFoundError } from "@/server/api/errors";
+import type { Prisma, ReportStatus, Role } from '@/generated/prisma/client'
+import { ForbiddenError, NotFoundError } from '@/server/api/errors'
 
 /**
  * 日報の権限判定（docs/api.md §4「共通：閲覧権限・編集可能条件・削除可能条件」、§5「コメント可能条件」）
@@ -23,29 +23,29 @@ import { ForbiddenError, NotFoundError } from "@/server/api/errors";
 
 /** 判定に使うログインユーザーの情報（`CurrentUser` をそのまま渡せる） */
 export interface AuthzUser {
-  id: number;
-  role: Role;
+  id: number
+  role: Role
 }
 
 /** 判定に使う日報の情報 */
 export interface AuthzReport {
   /** 日報を書いた営業の ID */
-  salesStaffId: number;
+  salesStaffId: number
   /** 日報を書いた営業の上長の ID（いなければ null） */
-  authorManagerId: number | null;
-  status: ReportStatus;
+  authorManagerId: number | null
+  status: ReportStatus
   /** コメントの件数 */
-  commentCount: number;
+  commentCount: number
 }
 
 /** 日報に対する操作 */
-export type ReportAction = "view" | "edit" | "delete" | "comment";
+export type ReportAction = 'view' | 'edit' | 'delete' | 'comment'
 
 /** R-03 の `permissions`（画面のボタンを出すかどうか） */
 export interface ReportPermissions {
-  canEdit: boolean;
-  canDelete: boolean;
-  canComment: boolean;
+  canEdit: boolean
+  canDelete: boolean
+  canComment: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -54,61 +54,48 @@ export interface ReportPermissions {
 
 /** 日報を閲覧できるか（U-01） */
 export function canViewReport(user: AuthzUser, report: AuthzReport): boolean {
-  if (user.role === "ADMIN") {
-    return false;
+  if (user.role === 'ADMIN') {
+    return false
   }
-  return (
-    isAuthor(user, report) ||
-    (isDirectManager(user, report) && report.status === "SUBMITTED")
-  );
+  return isAuthor(user, report) || (isDirectManager(user, report) && report.status === 'SUBMITTED')
 }
 
 /** 日報を編集できるか（U-02）。本人で、かつ下書き、または提出済みでコメントが 0 件 */
 export function canEditReport(user: AuthzUser, report: AuthzReport): boolean {
-  return (
-    isAuthor(user, report) &&
-    (report.status === "DRAFT" || report.commentCount === 0)
-  );
+  return isAuthor(user, report) && (report.status === 'DRAFT' || report.commentCount === 0)
 }
 
 /** 日報を削除できるか（U-02）。本人の下書きだけ（決定事項 #13） */
 export function canDeleteReport(user: AuthzUser, report: AuthzReport): boolean {
-  return isAuthor(user, report) && report.status === "DRAFT";
+  return isAuthor(user, report) && report.status === 'DRAFT'
 }
 
 /** 日報にコメントできるか（U-03）。直属の上長で、かつ提出済み */
 export function canComment(user: AuthzUser, report: AuthzReport): boolean {
-  return isDirectManager(user, report) && report.status === "SUBMITTED";
+  return isDirectManager(user, report) && report.status === 'SUBMITTED'
 }
 
 /** 操作ごとの判定 */
-export function canPerform(
-  user: AuthzUser,
-  report: AuthzReport,
-  action: ReportAction,
-): boolean {
+export function canPerform(user: AuthzUser, report: AuthzReport, action: ReportAction): boolean {
   switch (action) {
-    case "view":
-      return canViewReport(user, report);
-    case "edit":
-      return canEditReport(user, report);
-    case "delete":
-      return canDeleteReport(user, report);
-    case "comment":
-      return canComment(user, report);
+    case 'view':
+      return canViewReport(user, report)
+    case 'edit':
+      return canEditReport(user, report)
+    case 'delete':
+      return canDeleteReport(user, report)
+    case 'comment':
+      return canComment(user, report)
   }
 }
 
 /** R-03 の `permissions` を作る */
-export function reportPermissions(
-  user: AuthzUser,
-  report: AuthzReport,
-): ReportPermissions {
+export function reportPermissions(user: AuthzUser, report: AuthzReport): ReportPermissions {
   return {
     canEdit: canEditReport(user, report),
     canDelete: canDeleteReport(user, report),
     canComment: canComment(user, report),
-  };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -131,10 +118,10 @@ export function requireReportAccess<T extends AuthzReport>(
   action: ReportAction,
 ): asserts report is T {
   if (report === null || !canViewReport(user, report)) {
-    throw new NotFoundError();
+    throw new NotFoundError()
   }
   if (!canPerform(user, report, action)) {
-    throw new ForbiddenError();
+    throw new ForbiddenError()
   }
 }
 
@@ -146,20 +133,18 @@ export function requireReportAccess<T extends AuthzReport>(
  * 閲覧できる日報だけに絞り込む Prisma の where 条件（R-01）。`canViewReport` と同じ規則にする
  * （同じであることは src/server/authz/report.api.test.ts でテスト用DB を使って確かめている）
  */
-export function viewableReportsWhere(
-  user: AuthzUser,
-): Prisma.DailyReportWhereInput {
-  if (user.role === "ADMIN") {
+export function viewableReportsWhere(user: AuthzUser): Prisma.DailyReportWhereInput {
+  if (user.role === 'ADMIN') {
     // 何にも一致しない条件（管理者は日報を閲覧できない）
-    return { id: { in: [] } };
+    return { id: { in: [] } }
   }
-  const own: Prisma.DailyReportWhereInput = { salesStaffId: user.id };
-  if (user.role !== "MANAGER") {
-    return own;
+  const own: Prisma.DailyReportWhereInput = { salesStaffId: user.id }
+  if (user.role !== 'MANAGER') {
+    return own
   }
   return {
-    OR: [own, { status: "SUBMITTED", salesStaff: { managerId: user.id } }],
-  };
+    OR: [own, { status: 'SUBMITTED', salesStaff: { managerId: user.id } }],
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -167,9 +152,9 @@ export function viewableReportsWhere(
 // ---------------------------------------------------------------------------
 
 function isAuthor(user: AuthzUser, report: AuthzReport): boolean {
-  return report.salesStaffId === user.id;
+  return report.salesStaffId === user.id
 }
 
 function isDirectManager(user: AuthzUser, report: AuthzReport): boolean {
-  return user.role === "MANAGER" && report.authorManagerId === user.id;
+  return user.role === 'MANAGER' && report.authorManagerId === user.id
 }
