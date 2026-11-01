@@ -1,10 +1,10 @@
-// 仮のトップページ。ログイン画面（#22）と画面のアクセス制御（#20）ができたら、
-// ロールに応じて日報一覧（SC-02）または顧客一覧（SC-05）へリダイレクトする
-export default function HomePage() {
-  return (
-    <main>
-      <h1>営業日報システム</h1>
-      <p>開発中です。</p>
-    </main>
-  )
+import { redirect } from 'next/navigation'
+
+import { homePathForRole } from '@/lib/routes'
+import { requirePageUser } from '@/server/auth/page-auth'
+
+/** トップ画面。ロールごとの画面（営業・上長は日報一覧、管理者は顧客一覧）へ振り分ける */
+export default async function HomePage() {
+  const user = await requirePageUser()
+  redirect(homePathForRole(user.role))
 }

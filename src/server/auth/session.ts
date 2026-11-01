@@ -11,6 +11,17 @@ import { SESSION_COOKIE_NAME } from '@/lib/api-constants'
 import { UnauthenticatedError } from '@/server/api/errors'
 import { prisma } from '@/server/db/prisma'
 
+import { SESSION_TTL_MS, type WritableCookies, setSessionCookie } from './session-cookie'
+
+// Cookie の操作は DB を使わない proxy からも使うため、session-cookie.ts に分けている。今までどおりここからも import できるようにする
+export {
+  SESSION_TTL_MS,
+  type SessionCookieOptions,
+  clearSessionCookie,
+  sessionCookieOptions,
+  setSessionCookie,
+} from './session-cookie'
+
 /**
  * DB 保存型のセッション（docs/api.md §1.2）
  *
@@ -19,9 +30,6 @@ import { prisma } from '@/server/db/prisma'
  * - 期限切れ・無効化された営業のセッションでは認証しない（見つけた時点で削除する）
  * - 期限切れのセッションは、新しいセッションを作るとき（ログイン時）にまとめて削除する
  */
-
-/** セッションの有効期間（最後のアクセスから 7 日） */
-export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /** 有効期限を延ばす間隔。アクセスのたびに DB へ書き込まないよう、前回の延長から 1 時間たったときだけ延ばす */
 export const SESSION_RENEW_INTERVAL_MS = 60 * 60 * 1000
@@ -182,37 +190,6 @@ const getSessionFromCookieStore = cache(async (): Promise<AuthenticatedSession |
 // ---------------------------------------------------------------------------
 // Cookie
 // ---------------------------------------------------------------------------
-
-/** Cookie を書き込める先（`NextResponse.cookies` や、Route Handler の `await cookies()`） */
-interface WritableCookies {
-  set(name: string, value: string, options: SessionCookieOptions): unknown
-}
-
-export interface SessionCookieOptions {
-  httpOnly: true
-  secure: boolean
-  sameSite: 'lax'
-  path: '/'
-  expires: Date
-}
-
-/**
- * セッション Cookie の属性（docs/api.md §1.2、T-NF-05）。
- * `Secure` は本番だけ付ける。開発環境（http://localhost）では、Secure の Cookie を受け付けないブラウザ（Safari など）があるため
- */
-export function sessionCookieOptions(expiresAt: Date, env: NodeJS.ProcessEnv = process.env): SessionCookieOptions {
-  return { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', path: '/', expires: expiresAt }
-}
-
-/** セッション Cookie を設定する。Cookie の有効期限は DB のセッションの有効期限と同じにする */
-export function setSessionCookie(target: WritableCookies, token: string, expiresAt: Date): void {
-  target.set(SESSION_COOKIE_NAME, token, sessionCookieOptions(expiresAt))
-}
-
-/** セッション Cookie を消す（ログアウト時）。有効期限を過去にして上書きする */
-export function clearSessionCookie(target: WritableCookies): void {
-  target.set(SESSION_COOKIE_NAME, '', sessionCookieOptions(new Date(0)))
-}
 
 /**
  * このリクエストで DB の有効期限を延ばしたなら、Cookie の有効期限も同じだけ延ばす（決定事項 #26）。

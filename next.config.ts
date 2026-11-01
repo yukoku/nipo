@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // レスポンスヘッダーから X-Powered-By: Next.js を外す
   poweredByHeader: false,
+  experimental: {
+    // 権限のない画面で forbidden() を使い、403 画面（src/app/forbidden.tsx）を出すため（docs/screens.md §3.1）
+    authInterrupts: true,
+  },
 }
 
 export default nextConfig
