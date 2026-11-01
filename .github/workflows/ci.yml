@@ -86,5 +86,14 @@ jobs:
             exit 1
           fi
 
+      # Next.js のビルドキャッシュ（https://nextjs.org/docs/app/guides/ci-build-caching）
+      - name: Next.js のビルドキャッシュ
+        uses: actions/cache@v6
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'next.config.ts', 'tsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
       - name: ビルド
         run: npm run build
