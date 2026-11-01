@@ -682,7 +682,7 @@ A-03 と同じ形式のユーザー情報を返す。
 |---|---|---|---|
 | `name` | string | ○ | 最大 50 文字 |
 | `email` | string | ○ | メール形式、最大 255 文字。重複時は `409` |
-| `password` | string | ○ | 8〜128 文字、英字と数字を各 1 文字以上含む（決定事項 #25）。Argon2id でハッシュ化して保存する |
+| `password` | string | ○ | 8〜20 文字、英字と数字を各 1 文字以上含む（決定事項 #25）。Argon2id でハッシュ化して保存する |
 | `department` | string | | 最大 50 文字 |
 | `role` | string | ○ | `sales` / `manager` / `admin` |
 | `manager_id` | integer | | 有効な `manager` ロールの担当者であること |

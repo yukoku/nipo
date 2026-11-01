@@ -44,10 +44,11 @@ describe('passwordSchema（U-07）', () => {
     expect(messages('ｐａｓｓｗｏｒｄ１２')).toEqual([PASSWORD_CHARACTER_MESSAGE, PASSWORD_CHARACTER_MESSAGE])
   })
 
-  it('128 文字までは通り、129 文字はエラーになる', () => {
+  it('20 文字までは通り、21 文字はエラーになる', () => {
     const base = 'a1'.repeat(PASSWORD_MAX_LENGTH / 2)
+    expect(base).toHaveLength(20)
     expect(messages(base)).toEqual([])
-    expect(messages(`${base}x`)).toEqual(['パスワードは128文字以内で入力してください'])
+    expect(messages(`${base}x`)).toEqual(['パスワードは20文字以内で入力してください'])
   })
 
   it('空・未指定は必須エラーになる', () => {
