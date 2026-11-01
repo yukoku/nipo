@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { idQuerySchema, idSchema } from '@/schemas/id'
 import { emptyToUndefined, paginationQuerySchema } from '@/schemas/pagination'
+import { optionalText } from '@/schemas/text'
 
 /** 顧客の項目の文字数の上限（docs/api.md §6 M-02） */
 export const CUSTOMER_LIMITS = {
@@ -16,19 +17,6 @@ export const CUSTOMER_FIELD_LABELS = { name: '顧客名' } as const
 
 /** 電話番号に使える文字（数字とハイフンのみ） */
 export const PHONE_PATTERN = /^[0-9-]*$/
-
-/**
- * 任意の文字列項目。前後の空白を除き、空文字は `null`（未入力）として保存する。
- * 画面のフォームは未入力の項目を空文字で送るため、`null`・省略・空文字を同じに扱う
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max)
-    .nullish()
-    .transform((value) => value || null)
-}
 
 /** M-02 顧客登録のリクエスト（docs/api.md §6） */
 export const customerCreateRequestSchema = z.object({
