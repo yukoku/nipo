@@ -50,6 +50,18 @@ describe('apiRequest', () => {
     expect(calls).toEqual([{ url: '/api/v1/reports?page=2&customer_name=ABC', method: 'GET', csrf: null, body: undefined }])
   })
 
+  it('ログイン API は、CSRF トークンを取得・付与せずに呼ぶ（ログイン前は GET /auth/me が 401 になるため）', async () => {
+    const calls = mockFetch(json(200, { data: { id: 2, csrf_token: 'token-1' } }))
+
+    await expect(api.post('/auth/login', { email: 'yamada@example.com', password: 'Passw0rd' })).resolves.toEqual({
+      data: { id: 2, csrf_token: 'token-1' },
+    })
+
+    expect(calls).toEqual([
+      { url: '/api/v1/auth/login', method: 'POST', csrf: null, body: { email: 'yamada@example.com', password: 'Passw0rd' } },
+    ])
+  })
+
   it('更新系は、GET /auth/me で取得した CSRF トークンを X-CSRF-Token に付ける', async () => {
     const calls = mockFetch(meResponse('token-1'), json(201, { data: { id: 106 } }))
 

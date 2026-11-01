@@ -50,6 +50,14 @@ export const CONFIRM_MESSAGES = {
   deleteDraft: { title: 'この下書きを削除します。よろしいですか？', confirmLabel: '削除する', destructive: true },
 } as const satisfies Record<string, ConfirmOptions>
 
+/** ログイン画面（SC-01）のエラー */
+export const LOGIN_MESSAGES = {
+  /** M-01 */
+  failed: 'メールアドレスまたはパスワードが正しくありません',
+  /** M-13 */
+  locked: 'ログインに続けて失敗したため、しばらくログインできません。15分ほど待ってから再度お試しください',
+} as const
+
 /** API のエラーで、項目に結び付けられないものの既定の文言 */
 export const ERROR_MESSAGES = {
   unexpected: 'エラーが発生しました。時間をおいて再度お試しください',

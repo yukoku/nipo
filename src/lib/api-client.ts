@@ -6,6 +6,7 @@
  *
  * - トークンは `GET /api/v1/auth/me` から取得し、使い回す（ログイン API のレスポンスで受け取った場合は `setCsrfToken()` で入れる）
  * - トークンが古くて 403（`reason: CSRF_TOKEN_INVALID`）が返ったら、取り直して 1 回だけ再送する
+ * - ログイン API（`/auth/login`）にはトークンを付けない（ログイン前はトークンを取得できないため）
  *
  * @example
  * const { data } = await api.post<{ data: Report }>('/reports', { report_date: '2026-10-31', ... })
@@ -15,6 +16,12 @@ import type { ApiErrorBody, ValidationErrorDetail } from '@/schemas/api-error'
 import { API_BASE_PATH, CSRF_HEADER_NAME } from './api-constants'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+/**
+ * 更新系でも CSRF トークンを付けない API。ログイン（A-01）はセッションがまだないので、トークンを取得できない
+ * （`GET /auth/me` が 401 になる）。サーバー側も、ログイン API では CSRF トークンを確かめず Origin だけを確かめる（決定事項 #27）
+ */
+const CSRF_EXEMPT_PATHS = new Set(['/auth/login'])
 
 /** API がエラー（4xx・5xx）を返したときに投げる */
 export class ApiClientError extends Error {
@@ -59,7 +66,7 @@ export async function apiRequest<T = unknown>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const upperMethod = method.toUpperCase()
-  if (!UNSAFE_METHODS.has(upperMethod)) {
+  if (!UNSAFE_METHODS.has(upperMethod) || CSRF_EXEMPT_PATHS.has(path)) {
     return parseResponse<T>(await send(upperMethod, path, options, null))
   }
 

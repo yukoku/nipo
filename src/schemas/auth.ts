@@ -10,6 +10,15 @@ export const loginRequestSchema = z.object({
   password: z.string().min(1).max(256).meta({ example: 'Passw0rd' }),
 })
 
+/**
+ * ログイン画面（SC-01）のフォームの入力チェック。API の入力チェックに、メール形式のチェックを足したもの。
+ * API ではメール形式を確かめない（形式が違えば、該当するアカウントがなく 401 になるだけのため）
+ */
+export const loginFormSchema = loginRequestSchema.extend({
+  // 空なら「必須」（M-02）を出し、入力があるときだけ形式を確かめる
+  email: z.string().trim().min(1).max(255).pipe(z.email()),
+})
+
 /** ロール（API の値。docs/api.md §1.3） */
 export const roleSchema = z.enum(['sales', 'manager', 'admin']).meta({ id: 'Role' })
 
@@ -30,4 +39,5 @@ export const currentUserSchema = z
   .meta({ id: 'CurrentUser' })
 
 export type LoginRequest = z.output<typeof loginRequestSchema>
+export type LoginFormValues = z.input<typeof loginFormSchema>
 export type ApiRole = z.output<typeof roleSchema>

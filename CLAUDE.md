@@ -51,7 +51,7 @@ src/
 ## データ取得の方針
 - **表示（読み取り）**：Server Component から `src/server/services` の関数を直接呼ぶ。自分の REST API を HTTP で呼び出さない（無駄な通信と二重の認証処理を避けるため）
 - **登録・更新・削除**：Client Component から REST API（`/api/v1/...`）を呼ぶ。入力チェックは API 側で Zod スキーマにより必ず行い、画面側でも同じスキーマで事前にチェックする
-- 画面から API を呼ぶときは `api.get / post / put / delete`（`@/lib/api-client`）を使い、`fetch` を直接使わない。更新系には CSRF トークンが自動で付く（トークンが古ければ取り直して 1 回だけ再送する）。エラーは `ApiClientError`（`status`・`code`・`reason`・`details`）で投げられる。ログイン API で受け取ったトークンは `setCsrfToken()` で入れ、ログアウトしたら `setCsrfToken(null)` で消す
+- 画面から API を呼ぶときは `api.get / post / put / delete`（`@/lib/api-client`）を使い、`fetch` を直接使わない。更新系には CSRF トークンが自動で付く（トークンが古ければ取り直して 1 回だけ再送する。ログイン API だけはトークンを付けない）。エラーは `ApiClientError`（`status`・`code`・`reason`・`details`）で投げられる。ログイン API で受け取ったトークンは `setCsrfToken()` で入れ、ログアウトしたら `setCsrfToken(null)` で消す
 - Server Actions は使わない（API 仕様書・OpenAPI 定義と別の入口ができ、権限チェックの漏れにつながるため）
 - 権限チェックは services の中で行う（画面・API のどちらから呼ばれても同じ判定になるようにする）
 
@@ -82,7 +82,7 @@ src/
 - ログイン API（セッションがまだない）では、`verifyOrigin(request)`（`@/server/auth/csrf`）で Origin だけを確かめる
 - ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
 - Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy（`src/proxy.ts`。画面へのリクエストのたびに DB を見ずに延ばす。決定事項 #28）で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
-- ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()` を使う
+- ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()`、画面で API の値を DB の値に戻すときは `fromApiRole()`（`@/lib/roles`）を使う
 
 ## 画面のアクセス制御
 - 画面の URL は docs/screens.md §1 のとおり。パスとロールごとのトップ画面は `@/lib/routes`（`LOGIN_PATH`・`homePathForRole()`）を使い、文字列を直接書かない
