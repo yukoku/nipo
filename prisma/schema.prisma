@@ -1,0 +1,161 @@
+// 営業日報システム Prisma スキーマ
+// 元資料: docs/requirements.md「5. ER 図」, docs/api.md（文字数制限）
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// Enum
+// ============================================================
+
+/// ロール
+enum Role {
+  SALES   @map("sales")
+  MANAGER @map("manager")
+  ADMIN   @map("admin")
+
+  @@map("role")
+}
+
+/// 日報ステータス
+enum ReportStatus {
+  DRAFT     @map("draft")
+  SUBMITTED @map("submitted")
+
+  @@map("report_status")
+}
+
+/// コメント対象
+enum CommentTarget {
+  PROBLEM @map("problem")
+  PLAN    @map("plan")
+
+  @@map("comment_target")
+}
+
+// ============================================================
+// マスタ
+// ============================================================
+
+/// 営業マスタ（上長・管理者も含むログインユーザー）
+model SalesStaff {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(50)
+  /// ログインID
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  department   String?  @db.VarChar(50)
+  role         Role     @default(SALES)
+  /// 上長ID（自己参照）
+  managerId    Int?     @map("manager_id")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  manager           SalesStaff?   @relation("ManagerSubordinates", fields: [managerId], references: [id], onDelete: Restrict)
+  subordinates      SalesStaff[]  @relation("ManagerSubordinates")
+  assignedCustomers Customer[]
+  dailyReports      DailyReport[]
+  comments          Comment[]
+
+  @@index([managerId])
+  @@map("sales_staff")
+}
+
+/// 顧客マスタ
+model Customer {
+  id              Int      @id @default(autoincrement())
+  /// 顧客名（会社名）
+  name            String   @db.VarChar(100)
+  /// 先方担当者名
+  contactPerson   String?  @map("contact_person") @db.VarChar(50)
+  phone           String?  @db.VarChar(20)
+  address         String?  @db.VarChar(200)
+  /// 担当営業
+  assignedSalesId Int?     @map("assigned_sales_id")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  assignedSales SalesStaff?   @relation(fields: [assignedSalesId], references: [id], onDelete: SetNull)
+  visitRecords  VisitRecord[]
+
+  @@index([assignedSalesId])
+  @@map("customers")
+}
+
+// ============================================================
+// トランザクション
+// ============================================================
+
+/// 日報（営業担当者 × 報告日で一意）
+model DailyReport {
+  id           Int          @id @default(autoincrement())
+  salesStaffId Int          @map("sales_staff_id")
+  /// 報告日
+  reportDate   DateTime     @map("report_date") @db.Date
+  /// 課題・相談
+  problem      String?      @db.Text
+  /// 明日やること
+  plan         String?      @db.Text
+  status       ReportStatus @default(DRAFT)
+  submittedAt  DateTime?    @map("submitted_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  salesStaff   SalesStaff    @relation(fields: [salesStaffId], references: [id], onDelete: Restrict)
+  visitRecords VisitRecord[]
+  comments     Comment[]
+
+  @@unique([salesStaffId, reportDate])
+  @@index([reportDate])
+  @@map("daily_reports")
+}
+
+/// 訪問記録（日報の明細。1日報に複数行）
+model VisitRecord {
+  id            Int       @id @default(autoincrement())
+  dailyReportId Int       @map("daily_report_id")
+  customerId    Int       @map("customer_id")
+  /// 訪問時刻（任意）
+  visitedAt     DateTime? @map("visited_at") @db.Time(0)
+  /// 訪問内容
+  content       String    @db.Text
+  /// 表示順（1始まり）
+  sortOrder     Int       @map("sort_order")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([dailyReportId, sortOrder])
+  @@index([customerId])
+  @@map("visit_records")
+}
+
+/// 上長コメント（Problem / Plan に対して）
+model Comment {
+  id            Int           @id @default(autoincrement())
+  dailyReportId Int           @map("daily_report_id")
+  /// コメントした上長
+  commenterId   Int           @map("commenter_id")
+  target        CommentTarget
+  /// コメント本文
+  body          String        @db.Text
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  commenter   SalesStaff  @relation(fields: [commenterId], references: [id], onDelete: Restrict)
+
+  @@index([dailyReportId, createdAt])
+  @@index([commenterId])
+  @@map("comments")
+}

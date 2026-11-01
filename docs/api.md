@@ -1,0 +1,648 @@
+# 営業日報システム API仕様書（ドラフト v0.1）
+
+> 前提：[要件定義書](./requirements.md)・[画面定義書](./screens.md) v0.1 の仮定に基づく。
+
+## 1. 共通仕様
+
+### 1.1 基本事項
+
+| 項目 | 仕様 |
+|---|---|
+| 方式 | REST / JSON |
+| ベースURL | `/api/v1` |
+| 文字コード | UTF-8 |
+| リクエスト形式 | `Content-Type: application/json` |
+| 日付形式 | `YYYY-MM-DD`（例：`2026-10-31`） |
+| 時刻形式 | `HH:mm`（例：`14:30`） |
+| 日時形式 | ISO 8601 タイムゾーン付き（例：`2026-10-31T18:05:00+09:00`） |
+| 命名規則 | JSON のキーは snake_case |
+
+### 1.2 認証
+
+- セッション Cookie 方式（`HttpOnly`, `Secure`, `SameSite=Lax`）
+- ログイン以外の全 API で認証が必要。未認証の場合は `401`
+- 更新系（POST / PUT / DELETE）はリクエストヘッダー `X-CSRF-Token` を必須とする。トークンは `GET /auth/me` のレスポンスで取得する
+
+### 1.3 ロール
+
+| ロール | 値 |
+|---|---|
+| 営業 | `sales` |
+| 上長 | `manager` |
+| 管理者 | `admin` |
+
+### 1.4 ページング
+
+一覧 API は以下のクエリパラメータを受け付ける。
+
+| パラメータ | 型 | 初期値 | 説明 |
+|---|---|---|---|
+| `page` | integer | 1 | ページ番号 |
+| `per_page` | integer | 20 | 1ページの件数（最大 100） |
+
+レスポンスには `meta` を含める。
+
+```json
+{
+  "data": [ ... ],
+  "meta": { "page": 1, "per_page": 20, "total_count": 53, "total_pages": 3 }
+}
+```
+
+### 1.5 エラーレスポンス
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "入力内容に誤りがあります",
+    "details": [
+      { "field": "visit_records[0].content", "message": "訪問内容は必須です" }
+    ]
+  }
+}
+```
+
+| HTTP ステータス | `code` | 用途 |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | 入力チェックエラー（`details` に項目別メッセージ） |
+| 401 | `UNAUTHENTICATED` | 未ログイン・セッション切れ・認証失敗 |
+| 403 | `FORBIDDEN` | 権限なし |
+| 404 | `NOT_FOUND` | 対象が存在しない（閲覧権限のない日報も 404 を返し、存在を推測させない） |
+| 409 | `CONFLICT` | 一意制約違反（同日の日報が既にある、メール重複）、編集不可状態 |
+| 500 | `INTERNAL_ERROR` | サーバーエラー |
+
+`details[].field` はネストした配列を `visit_records[0].content` のように表記する。
+
+## 2. API 一覧
+
+| # | メソッド | パス | 概要 | 利用ロール | 利用画面 |
+|---|---|---|---|---|---|
+| A-01 | POST | `/auth/login` | ログイン | 全員（未認証） | SC-01 |
+| A-02 | POST | `/auth/logout` | ログアウト | 全員 | 共通 |
+| A-03 | GET | `/auth/me` | ログインユーザー情報取得 | 全員 | 共通 |
+| R-01 | GET | `/reports` | 日報一覧取得 | sales, manager | SC-02 |
+| R-02 | POST | `/reports` | 日報作成 | sales, manager | SC-03 |
+| R-03 | GET | `/reports/{id}` | 日報詳細取得 | sales, manager | SC-03, SC-04 |
+| R-04 | PUT | `/reports/{id}` | 日報更新 | sales, manager（本人） | SC-03 |
+| C-01 | POST | `/reports/{id}/comments` | コメント投稿 | manager（作成者の上長） | SC-04 |
+| C-02 | PUT | `/comments/{id}` | コメント更新 | manager（投稿者本人） | SC-04 |
+| C-03 | DELETE | `/comments/{id}` | コメント削除 | manager（投稿者本人） | SC-04 |
+| M-01 | GET | `/customers` | 顧客一覧取得 | 全員 | SC-03, SC-05 |
+| M-02 | POST | `/customers` | 顧客登録 | admin | SC-06 |
+| M-03 | GET | `/customers/{id}` | 顧客詳細取得 | admin | SC-06 |
+| M-04 | PUT | `/customers/{id}` | 顧客更新 | admin | SC-06 |
+| S-01 | GET | `/sales-staff` | 営業一覧取得 | admin（manager は部下のみ） | SC-02, SC-06, SC-07, SC-08 |
+| S-02 | POST | `/sales-staff` | 営業登録 | admin | SC-08 |
+| S-03 | GET | `/sales-staff/{id}` | 営業詳細取得 | admin | SC-08 |
+| S-04 | PUT | `/sales-staff/{id}` | 営業更新 | admin | SC-08 |
+
+> マスタは論理削除（`is_active = false`）で運用するため、顧客・営業の DELETE API は設けない。
+
+---
+
+## 3. 認証 API
+
+### A-01 ログイン
+
+`POST /auth/login`
+
+**リクエスト**
+
+```json
+{
+  "email": "yamada@example.com",
+  "password": "********"
+}
+```
+
+| 項目 | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `email` | string | ○ | メールアドレス |
+| `password` | string | ○ | パスワード |
+
+**レスポンス** `200 OK`（セッション Cookie を発行）
+
+A-03 と同じ形式のユーザー情報を返す。
+
+**エラー**
+- `401 UNAUTHENTICATED`：メールアドレス・パスワード不一致、または無効化されたアカウント（同一メッセージ）
+
+---
+
+### A-02 ログアウト
+
+`POST /auth/logout`
+
+**レスポンス** `204 No Content`（セッションを破棄）
+
+---
+
+### A-03 ログインユーザー情報取得
+
+`GET /auth/me`
+
+**レスポンス** `200 OK`
+
+```json
+{
+  "data": {
+    "id": 2,
+    "name": "山田太郎",
+    "email": "yamada@example.com",
+    "department": "営業1課",
+    "role": "sales",
+    "manager": { "id": 1, "name": "鈴木一郎" },
+    "subordinates": [],
+    "csrf_token": "a1b2c3..."
+  }
+}
+```
+
+| 項目 | 説明 |
+|---|---|
+| `manager` | 上長。未設定なら `null` |
+| `subordinates` | 直属の部下（有効な者のみ）の `{id, name}` 配列。SC-02 の担当者セレクトに使う |
+| `csrf_token` | 更新系 API の `X-CSRF-Token` ヘッダーに設定する値 |
+
+---
+
+## 4. 日報 API
+
+### 共通：日報オブジェクト
+
+```json
+{
+  "id": 101,
+  "report_date": "2026-10-31",
+  "sales_staff": { "id": 2, "name": "山田太郎" },
+  "status": "submitted",
+  "submitted_at": "2026-10-31T18:05:00+09:00",
+  "problem": "XYZ工業の値引き要求にどこまで応じるべきか相談したい。",
+  "plan": "ABC商事へ資料送付、DEF社アポ取り",
+  "visit_records": [
+    {
+      "id": 501,
+      "customer": { "id": 10, "name": "ABC商事" },
+      "visited_at": "10:00",
+      "content": "新商品の提案。先方部長が興味あり。",
+      "sort_order": 1
+    }
+  ],
+  "comments": [
+    {
+      "id": 801,
+      "target": "problem",
+      "body": "5%までなら即決OK。それ以上は相談して。",
+      "commenter": { "id": 1, "name": "鈴木一郎" },
+      "created_at": "2026-10-31T19:10:00+09:00",
+      "updated_at": "2026-10-31T19:10:00+09:00"
+    }
+  ],
+  "permissions": {
+    "can_edit": false,
+    "can_comment": false
+  },
+  "created_at": "2026-10-31T17:40:00+09:00",
+  "updated_at": "2026-10-31T18:05:00+09:00"
+}
+```
+
+| 項目 | 説明 |
+|---|---|
+| `status` | `draft`（下書き） / `submitted`（提出済み） |
+| `submitted_at` | 下書きの場合は `null` |
+| `visit_records` | `sort_order` の昇順 |
+| `comments` | `created_at` の昇順。画面側で `target` ごとに振り分けて表示する |
+| `permissions.can_edit` | ログインユーザーが本人かつ編集可能な状態なら `true`（SC-04 の編集ボタン表示制御） |
+| `permissions.can_comment` | ログインユーザーが作成者の上長かつ提出済みなら `true`（コメント欄の表示制御） |
+
+### 共通：閲覧権限
+
+| ログインユーザー | 閲覧できる日報 |
+|---|---|
+| 本人 | 自分の日報（下書き含む） |
+| 上長 | 上記 ＋ 直属の部下の **提出済み** 日報 |
+| 管理者 | なし（要確認事項） |
+
+### 共通：編集可能条件
+
+- 本人の日報であること
+- 下書き、または提出済みでもコメントが 0 件であること（コメント付きの日報は編集不可）
+
+---
+
+### R-01 日報一覧取得
+
+`GET /reports`
+
+**クエリパラメータ**
+
+| パラメータ | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `date_from` | date | | 報告日（開始）。省略時は制限なし |
+| `date_to` | date | | 報告日（終了）。省略時は制限なし |
+| `sales_staff_id` | integer | | 担当者で絞り込み。閲覧権限のない ID を指定した場合は `403` |
+| `customer_name` | string | | 顧客名の部分一致。該当顧客の訪問記録を含む日報を抽出 |
+| `page`, `per_page` | integer | | ページング |
+
+並び順：`report_date` 降順 → 担当者名昇順
+
+**レスポンス** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "id": 101,
+      "report_date": "2026-10-31",
+      "sales_staff": { "id": 2, "name": "山田太郎" },
+      "status": "submitted",
+      "visit_count": 3,
+      "comment_count": 2,
+      "needs_comment": false
+    }
+  ],
+  "meta": { "page": 1, "per_page": 20, "total_count": 53, "total_pages": 3 }
+}
+```
+
+| 項目 | 説明 |
+|---|---|
+| `visit_count` | 訪問記録の件数 |
+| `comment_count` | コメント件数 |
+| `needs_comment` | ログインユーザーが上長で、部下の提出済み日報にコメントが 0 件の場合 `true`（SC-02 の「●」表示） |
+
+> SC-02「今日の日報を書く」ボタンは `GET /reports?sales_staff_id={自分のID}&date_from={今日}&date_to={今日}` で今日の日報の有無を確認し、あれば編集・なければ新規作成へ遷移する。
+
+---
+
+### R-02 日報作成
+
+`POST /reports`
+
+**リクエスト**
+
+```json
+{
+  "report_date": "2026-10-31",
+  "status": "submitted",
+  "problem": "XYZ工業の値引き要求にどこまで応じるべきか相談したい。",
+  "plan": "ABC商事へ資料送付、DEF社アポ取り",
+  "visit_records": [
+    {
+      "customer_id": 10,
+      "visited_at": "10:00",
+      "content": "新商品の提案。先方部長が興味あり。"
+    },
+    {
+      "customer_id": 12,
+      "visited_at": "14:30",
+      "content": "見積提出。来週回答予定。"
+    }
+  ]
+}
+```
+
+| 項目 | 型 | 必須 | チェック |
+|---|---|---|---|
+| `report_date` | date | ○ | 未来日不可。本人の同日付日報が既にあれば `409` |
+| `status` | string | ○ | `draft` / `submitted` |
+| `problem` | string | 提出時○ | 最大 2,000 文字 |
+| `plan` | string | 提出時○ | 最大 2,000 文字 |
+| `visit_records` | array | 提出時○ | 提出時は 1 件以上。最大 20 件 |
+| `visit_records[].customer_id` | integer | ○ | 有効な顧客であること |
+| `visit_records[].visited_at` | string | | `HH:mm` 形式 |
+| `visit_records[].content` | string | ○ | 最大 2,000 文字 |
+
+- 担当者はログインユーザーで固定（リクエストでは指定しない）
+- `sort_order` は配列の順番で 1 から採番する
+- `status = submitted` の場合は `submitted_at` に現在日時を設定する
+- 下書き保存時も、入力された訪問記録の行については `customer_id`・`content` の必須チェックを行う（空行は画面側で除外して送信する）
+
+**レスポンス** `201 Created`
+
+作成した日報オブジェクト。`Location: /api/v1/reports/{id}` ヘッダーを付与。
+
+**エラー**
+- `400 VALIDATION_ERROR`：入力チェックエラー
+- `409 CONFLICT`（`code` 詳細：`REPORT_ALREADY_EXISTS`）：同日付の日報が既に存在
+
+---
+
+### R-03 日報詳細取得
+
+`GET /reports/{id}`
+
+**レスポンス** `200 OK`：日報オブジェクト
+
+**エラー**
+- `404 NOT_FOUND`：存在しない、または閲覧権限がない
+
+---
+
+### R-04 日報更新
+
+`PUT /reports/{id}`
+
+**リクエスト**：R-02 と同じ形式。ただし `report_date` は指定不可（送られても無視）。
+
+- `visit_records` は **全件置き換え**。既存行を残す場合は `id` を含めて送信する
+
+```json
+{
+  "status": "submitted",
+  "problem": "...",
+  "plan": "...",
+  "visit_records": [
+    { "id": 501, "customer_id": 10, "visited_at": "10:00", "content": "（修正後）" },
+    { "customer_id": 15, "visited_at": "16:00", "content": "（追加した行）" }
+  ]
+}
+```
+
+| 動作 | 条件 |
+|---|---|
+| 更新 | `id` 付きで送られた既存行 |
+| 追加 | `id` なしの行 |
+| 削除 | 既存行のうち、送られなかった行 |
+
+- `submitted` → `draft` への差し戻しは不可（`400`）
+- 初めて `submitted` になったときのみ `submitted_at` を設定する
+
+**レスポンス** `200 OK`：更新後の日報オブジェクト
+
+**エラー**
+- `400 VALIDATION_ERROR`：入力チェックエラー、他の日報に属する `visit_records[].id` を指定
+- `403 FORBIDDEN`：本人以外
+- `404 NOT_FOUND`：存在しない、または閲覧権限がない
+- `409 CONFLICT`（`code` 詳細：`REPORT_LOCKED`）：コメントが付いているため編集不可
+
+---
+
+## 5. コメント API
+
+### 共通：コメント可能条件
+
+- ログインユーザーが日報作成者の **直属の上長** であること
+- 日報が提出済みであること
+
+### C-01 コメント投稿
+
+`POST /reports/{id}/comments`
+
+**リクエスト**
+
+```json
+{
+  "target": "problem",
+  "body": "5%までなら即決OK。それ以上は相談して。"
+}
+```
+
+| 項目 | 型 | 必須 | チェック |
+|---|---|---|---|
+| `target` | string | ○ | `problem` / `plan` |
+| `body` | string | ○ | 最大 1,000 文字。空白のみ不可 |
+
+**レスポンス** `201 Created`：コメントオブジェクト（日報オブジェクト内の `comments[]` と同形式）
+
+**エラー**
+- `400 VALIDATION_ERROR`
+- `403 FORBIDDEN`：コメント可能条件を満たさない
+- `404 NOT_FOUND`：日報が存在しない、または閲覧権限がない
+
+---
+
+### C-02 コメント更新
+
+`PUT /comments/{id}`
+
+**リクエスト**
+
+```json
+{ "body": "5%までなら即決OK。7%までは私に一報を。" }
+```
+
+- `target` は変更不可
+
+**レスポンス** `200 OK`：更新後のコメントオブジェクト
+
+**エラー**
+- `403 FORBIDDEN`：投稿者本人以外
+- `404 NOT_FOUND`
+
+---
+
+### C-03 コメント削除
+
+`DELETE /comments/{id}`
+
+**レスポンス** `204 No Content`
+
+- 物理削除とする（要確認）
+- 削除の結果コメントが 0 件になった日報は、再び編集可能になる
+
+**エラー**
+- `403 FORBIDDEN`：投稿者本人以外
+- `404 NOT_FOUND`
+
+---
+
+## 6. 顧客マスタ API
+
+### 共通：顧客オブジェクト
+
+```json
+{
+  "id": 10,
+  "name": "ABC商事",
+  "contact_person": "田中様",
+  "phone": "03-1234-5678",
+  "address": "東京都千代田区...",
+  "assigned_sales": { "id": 2, "name": "山田太郎" },
+  "is_active": true,
+  "created_at": "2026-04-01T10:00:00+09:00",
+  "updated_at": "2026-04-01T10:00:00+09:00"
+}
+```
+
+### M-01 顧客一覧取得
+
+`GET /customers`
+
+**クエリパラメータ**
+
+| パラメータ | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `name` | string | | 顧客名の部分一致 |
+| `assigned_sales_id` | integer | | 担当営業で絞り込み |
+| `include_inactive` | boolean | | `true` で無効な顧客も含める。admin 以外は指定しても無視（常に有効のみ） |
+| `page`, `per_page` | integer | | ページング |
+
+並び順：顧客名昇順
+
+- sales / manager は日報入力の顧客選択（SC-03）のために利用する。その場合のレスポンスは `id`・`name` のみでもよいが、実装簡略化のため同一形式で返す
+
+**レスポンス** `200 OK`：顧客オブジェクトの配列 ＋ `meta`
+
+---
+
+### M-02 顧客登録
+
+`POST /customers`
+
+**リクエスト**
+
+```json
+{
+  "name": "ABC商事",
+  "contact_person": "田中様",
+  "phone": "03-1234-5678",
+  "address": "東京都千代田区...",
+  "assigned_sales_id": 2
+}
+```
+
+| 項目 | 型 | 必須 | チェック |
+|---|---|---|---|
+| `name` | string | ○ | 最大 100 文字 |
+| `contact_person` | string | | 最大 50 文字 |
+| `phone` | string | | 数字とハイフンのみ、最大 20 文字 |
+| `address` | string | | 最大 200 文字 |
+| `assigned_sales_id` | integer | | 有効な営業担当者であること |
+
+- `is_active` は `true` で登録
+
+**レスポンス** `201 Created`：顧客オブジェクト
+
+---
+
+### M-03 顧客詳細取得
+
+`GET /customers/{id}`
+
+**レスポンス** `200 OK`：顧客オブジェクト
+
+---
+
+### M-04 顧客更新
+
+`PUT /customers/{id}`
+
+**リクエスト**：M-02 の項目 ＋ `is_active`（boolean, 必須）
+
+- 無効化しても、過去の訪問記録からの参照は維持する
+
+**レスポンス** `200 OK`：更新後の顧客オブジェクト
+
+---
+
+## 7. 営業マスタ API
+
+### 共通：営業オブジェクト
+
+```json
+{
+  "id": 2,
+  "name": "山田太郎",
+  "email": "yamada@example.com",
+  "department": "営業1課",
+  "role": "sales",
+  "manager": { "id": 1, "name": "鈴木一郎" },
+  "is_active": true,
+  "created_at": "2026-04-01T10:00:00+09:00",
+  "updated_at": "2026-04-01T10:00:00+09:00"
+}
+```
+
+※ `password_hash` はいかなる API でも返さない。
+
+### S-01 営業一覧取得
+
+`GET /sales-staff`
+
+**クエリパラメータ**
+
+| パラメータ | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `name` | string | | 氏名の部分一致 |
+| `department` | string | | 部署の完全一致 |
+| `role` | string | | ロールで絞り込み（SC-08 の上長セレクトでは `manager` を指定） |
+| `include_inactive` | boolean | | `true` で無効な担当者も含める |
+| `page`, `per_page` | integer | | ページング |
+
+並び順：部署昇順 → 氏名昇順
+
+**権限**
+- admin：全件
+- manager：自分と直属の部下のみ
+- sales：`403`
+
+**レスポンス** `200 OK`：営業オブジェクトの配列 ＋ `meta`
+
+---
+
+### S-02 営業登録
+
+`POST /sales-staff`
+
+**リクエスト**
+
+```json
+{
+  "name": "山田太郎",
+  "email": "yamada@example.com",
+  "password": "Passw0rd",
+  "department": "営業1課",
+  "role": "sales",
+  "manager_id": 1
+}
+```
+
+| 項目 | 型 | 必須 | チェック |
+|---|---|---|---|
+| `name` | string | ○ | 最大 50 文字 |
+| `email` | string | ○ | メール形式、最大 255 文字。重複時は `409` |
+| `password` | string | ○ | 8 文字以上、英字と数字を各 1 文字以上含む |
+| `department` | string | | 最大 50 文字 |
+| `role` | string | ○ | `sales` / `manager` / `admin` |
+| `manager_id` | integer | | 有効な `manager` ロールの担当者であること |
+
+**レスポンス** `201 Created`：営業オブジェクト
+
+**エラー**
+- `409 CONFLICT`（`code` 詳細：`EMAIL_ALREADY_EXISTS`）
+
+---
+
+### S-03 営業詳細取得
+
+`GET /sales-staff/{id}`
+
+**レスポンス** `200 OK`：営業オブジェクト ＋ `subordinate_count`（直属の部下の人数。SC-08 の無効化警告に使う）
+
+---
+
+### S-04 営業更新
+
+`PUT /sales-staff/{id}`
+
+**リクエスト**：S-02 の項目 ＋ `is_active`（boolean, 必須）
+
+- `password` は任意。省略または空文字なら変更しない
+- `manager_id` に自分自身、または自分の配下（部下・部下の部下…）を指定した場合は `400`（循環防止）
+- `role` を `manager` 以外に変更する場合、部下がいれば `409`（先に部下の上長を付け替える必要がある）
+- 無効化するとその担当者の既存セッションを破棄する
+- 管理者が自分自身を無効化・ロール変更することは不可（`400`）
+
+**レスポンス** `200 OK`：更新後の営業オブジェクト
+
+---
+
+## 8. 確認したい事項（API 設計で新たに出たもの）
+
+1. 認証方式はセッション Cookie でよいか？（将来スマホアプリを作るならトークン方式も検討）
+2. 下書き日報の削除 API は必要か？（現状なし。誤って別日付で作った場合に困る可能性）
+3. コメント削除は物理削除でよいか、論理削除にして履歴を残すか？
+4. 同じ日報を 2 人が同時に編集する状況はないため楽観ロックは入れていないが、上長のコメント投稿と本人の編集が同時に起きた場合の扱いをどうするか？（現状：更新時にコメント有無をチェックし `409` を返す）
