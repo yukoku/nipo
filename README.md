@@ -53,10 +53,16 @@ cp .env.example .env
 
 # 4. 動作を確認する
 npm run lint            # ESLint がエラーなく終わること
+npm run typecheck       # 型エラーがないこと
 npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と表示されること
+
+# 5. 開発サーバーを起動する
+npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
 `npx prisma validate` は DB に接続しないため、DB を用意していなくても `.env` があれば実行できます。
+
+Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm を使っている場合は `nvm use` で切り替えられます。
 
 ローカル DB の起動、マイグレーション、開発サーバーの起動手順は、各 Issue の対応に合わせてこの節に追記します。
 
@@ -64,6 +70,10 @@ npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と�
 
 | コマンド | 内容 |
 |---|---|
+| `npm run dev` | 開発サーバーを起動する（http://localhost:3000） |
+| `npm run build` | 本番用にビルドする（`.next/standalone` に Cloud Run 用の出力ができる） |
+| `npm run start` | ビルドしたアプリを起動する |
+| `npm run typecheck` | ルートの型を生成してから TypeScript の型チェックをする |
 | `npm run lint` | ESLint でコードをチェックする |
 | `npm run lint:fix` | ESLint で自動修正できる問題を直す |
 
@@ -71,8 +81,6 @@ npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と�
 
 | コマンド | 内容 | 追加する Issue |
 |---|---|---|
-| `npm run dev` / `build` / `start` | 開発サーバー・ビルド・本番起動 | [#4](https://github.com/yukoku/nipo/issues/4) |
-| `npm run typecheck` | TypeScript の型チェック | [#4](https://github.com/yukoku/nipo/issues/4) |
 | `npm test` / `test:watch` / `test:coverage` | Vitest によるテスト | [#6](https://github.com/yukoku/nipo/issues/6) |
 | `npm run db:migrate` / `db:deploy` / `db:reset` / `db:studio` | Prisma のマイグレーション・DB 操作 | [#8](https://github.com/yukoku/nipo/issues/8) |
 | `npm run openapi:generate` | Zod スキーマから OpenAPI 定義を出力 | [#11](https://github.com/yukoku/nipo/issues/11) |
@@ -81,16 +89,20 @@ npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と�
 
 ```
 .
+├── src/
+│   └── app/              # 画面（App Router）と API（app/api/v1/）
 ├── docs/                 # 仕様書
 ├── prisma/
 │   └── schema.prisma     # DB スキーマ
+├── next.config.ts        # Next.js の設定（Cloud Run 向けに standalone 出力）
+├── tsconfig.json         # TypeScript の設定（strict、パスエイリアス @/* → src/*）
 ├── prisma.config.ts      # Prisma CLI の設定（DB 接続先は環境変数 DATABASE_URL）
 ├── eslint.config.mjs     # ESLint の設定
 ├── CLAUDE.md             # 開発ルール（Claude Code が読み込む）
 └── .github/              # PR・Issue テンプレート、Dependabot の設定
 ```
 
-アプリのソースコード（`src/`）の構成は [#4](https://github.com/yukoku/nipo/issues/4) で決めます。
+`src/` 配下の構成とデータ取得の方針は [CLAUDE.md の「アーキテクチャ」](CLAUDE.md) を参照してください。
 
 ## 開発の進め方
 

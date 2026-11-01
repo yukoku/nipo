@@ -27,6 +27,33 @@
 **テスト** Vitest
 **デプロイ** Google Cloud Run
 
+# アーキテクチャ
+
+## ディレクトリ構成
+```
+src/
+  app/            # 画面（App Router）と Route Handlers
+    api/v1/       #   REST API（docs/api.md）。Route Handler は薄くし、処理は server/services に置く
+  components/     # 機能をまたいで使う UI 部品
+    ui/           #   shadcn/ui が生成する部品（手で大きく書き換えない）
+  features/       # 機能ごとの画面部品・フック（reports / customers / staff / auth）
+  schemas/        # Zod スキーマ。API の入力検証・OpenAPI 定義・フォームの入力チェックで共有する
+  server/         # サーバー専用のコード（先頭で `import 'server-only'` する）
+    services/     #   業務ロジック（日報の作成・更新など）。Server Component と Route Handler の両方から呼ぶ
+    authz/        #   権限判定（DB にアクセスしない純粋関数）
+    auth/         #   セッション・パスワード
+    db/           #   Prisma Client
+  lib/            # サーバー・ブラウザの両方で使う汎用ユーティリティ（日付、API クライアントなど）
+```
+- import はパスエイリアス `@/` を使う（例：`import { prisma } from '@/server/db/prisma'`）。`../../` のような深い相対パスは使わない
+- `src/server/` 配下のファイルは先頭で `import 'server-only'` し、Client Component から誤って import されたらビルドエラーになるようにする
+
+## データ取得の方針
+- **表示（読み取り）**：Server Component から `src/server/services` の関数を直接呼ぶ。自分の REST API を HTTP で呼び出さない（無駄な通信と二重の認証処理を避けるため）
+- **登録・更新・削除**：Client Component から REST API（`/api/v1/...`）を呼ぶ。入力チェックは API 側で Zod スキーマにより必ず行い、画面側でも同じスキーマで事前にチェックする
+- Server Actions は使わない（API 仕様書・OpenAPI 定義と別の入口ができ、権限チェックの漏れにつながるため）
+- 権限チェックは services の中で行う（画面・API のどちらから呼ばれても同じ判定になるようにする）
+
 # 開発ルール
 
 ## 作業の進め方
