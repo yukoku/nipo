@@ -1,13 +1,14 @@
 import { OpenApiGeneratorV31 } from '@asteasolutions/zod-to-openapi'
 
 import { API_BASE_PATH } from '@/lib/api-constants'
+import { registerAuthApis } from '@/openapi/paths/auth'
 import { registerHealthApis } from '@/openapi/paths/health'
 import { COMMON_SCHEMAS, createRegistry } from '@/openapi/registry'
 
 /**
  * API を登録する関数の一覧。API を追加したら、src/openapi/paths/ に登録する関数を作り、ここに足す
  */
-const REGISTRARS = [registerHealthApis]
+const REGISTRARS = [registerAuthApis, registerHealthApis]
 
 type OpenApiDocument = ReturnType<OpenApiGeneratorV31['generateDocument']>
 

@@ -109,6 +109,65 @@ components:
         - per_page
         - total_count
         - total_pages
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        department:
+          type:
+            - string
+            - "null"
+        role:
+          $ref: "#/components/schemas/Role"
+        manager:
+          type:
+            - object
+            - "null"
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+          description: 上長。未設定なら null
+        subordinates:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+            required:
+              - id
+              - name
+          description: 直属の部下（有効な者のみ）。SC-02 の担当者セレクトに使う
+        csrf_token:
+          type: string
+          description: 更新系 API の `X-CSRF-Token` ヘッダーに設定する値
+      required:
+        - id
+        - name
+        - email
+        - department
+        - role
+        - manager
+        - subordinates
+        - csrf_token
+    Role:
+      type: string
+      enum:
+        - sales
+        - manager
+        - admin
     Health:
       type: object
       properties:
@@ -130,6 +189,134 @@ components:
         - status
   parameters: {}
 paths:
+  /auth/login:
+    post:
+      operationId: A-01
+      summary: A-01 ログイン
+      description: メールアドレスとパスワードで認証し、セッション Cookie（`nipo_session`）を発行する。認証不要。メールアドレスの違い・パスワードの違い・無効なアカウントは、すべて同じ 401 を返す。別のサイトの Origin からのリクエストは 403
+      tags:
+        - 認証
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  example: yamada@example.com
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 256
+                  example: Passw0rd
+              required:
+                - email
+                - password
+      responses:
+        "200":
+          description: ログインした。A-03 と同じ形式のユーザー情報を返す
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CurrentUser"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/logout:
+    post:
+      operationId: A-02
+      summary: A-02 ログアウト
+      description: セッションを破棄し、セッション Cookie を消す
+      tags:
+        - 認証
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        "204":
+          description: ログアウトした
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/me:
+    get:
+      operationId: A-03
+      summary: A-03 ログインユーザー情報取得
+      description: ログイン中のユーザーの情報と、更新系 API で使う CSRF トークンを返す
+      tags:
+        - 認証
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: ログイン中のユーザー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CurrentUser"
+                required:
+                  - data
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /health:
     get:
       operationId: H-01
