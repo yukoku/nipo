@@ -8,3 +8,15 @@ import { afterEach } from 'vitest'
 afterEach(() => {
   cleanup()
 })
+
+// jsdom にないブラウザの API を補う。Radix UI の Select・Popover などが使う（使わないので中身は空でよい）
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub
+Element.prototype.hasPointerCapture ??= () => false
+Element.prototype.setPointerCapture ??= () => undefined
+Element.prototype.releasePointerCapture ??= () => undefined
+Element.prototype.scrollIntoView ??= () => undefined
