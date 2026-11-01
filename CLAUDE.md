@@ -84,6 +84,15 @@ src/
 - Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy で行う。Route Handler では、レスポンスを返す直前に `refreshSessionCookie(response.cookies, request, auth)` を呼ぶ（`auth` は `requireAuth()` の戻り値。延ばしたときだけ Cookie を送り直す。決定事項 #26）
 - ログインユーザーの情報（上長・部下・CSRF トークン）は `getCurrentUserProfile()`（`@/server/services/auth`）で取得する。DB のロール（`SALES`）を API の値（`sales`）にするときは `toApiRole()` を使う
 
+## 権限判定
+- 権限の判定は `src/server/authz/` の純粋関数で行い、services や画面で条件を書き直さない（DB にはアクセスしないので、判定に必要な値は呼び出し側で読み込んで渡す）
+- 日報の閲覧・編集・削除・コメントは `requireReportAccess(user, report, 'view' | 'edit' | 'delete' | 'comment')`（`@/server/authz/report`）で確かめる。日報がない・閲覧できないなら `NotFoundError`（404）、閲覧はできるがその操作ができないなら `ForbiddenError`（403）
+  - `report` には `{ salesStaffId, authorManagerId（日報を書いた人の manager_id）, status, commentCount }` を渡す
+  - 編集・コメントは、決定事項 #15 のとおり日報の行をロックしてから読み込んだ値で判定する
+- R-03 の `permissions` は `reportPermissions(user, report)` で作る
+- 一覧（R-01）は `viewableReportsWhere(user)` を Prisma の `where` に入れて絞り込む（`canViewReport` と同じ規則であることを `report.api.test.ts` で確かめている。規則を変えたら両方を直す）
+- ロールで決まる操作（マスタ管理は管理者だけ、日報の作成は営業・上長だけ など）は `requireRole(user, 'ADMIN')`（`@/server/authz/role`）
+
 ## パスワード
 - パスワードは `hashPassword()`（`@/server/auth/password`）でハッシュ化して保存する。平文をログ・DB・レスポンスに出さない
 - 照合は `verifyPassword(hash, password)` を使う。ユーザーがいない・無効なときも `verifyPassword(null, password)` を呼んで同じだけ時間をかける（応答時間からアカウントの有無を推測させない）
