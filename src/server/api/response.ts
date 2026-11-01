@@ -2,34 +2,35 @@ import 'server-only'
 
 import { NextResponse } from 'next/server'
 
-import { type SnakeCaseKeys, toSnakeCaseKeys } from '@/lib/case'
 import type { ApiErrorBody, ApiError } from '@/server/api/errors'
+import { type ApiJson, toApiJson } from '@/server/api/serialize'
 import type { PageMeta } from '@/schemas/pagination'
 
 /**
- * API のレスポンスを作る関数。データのキーはここで snake_case にする（services からは camelCase のまま渡す）。
+ * API のレスポンスを作る関数。データはここで API の形にする（キーは snake_case、Date は `+09:00` 付きの文字列）。
+ * services からは camelCase・Date のまま渡す。
  *
  * ログインユーザーごとに内容が変わるため、ブラウザや中継サーバーにキャッシュさせない（`Cache-Control: no-store`）
  */
 const NO_STORE = { 'Cache-Control': 'no-store' }
 
-export type DataBody<T> = { data: SnakeCaseKeys<T> }
-export type ListBody<T> = { data: SnakeCaseKeys<T>[]; meta: PageMeta }
+export type DataBody<T> = { data: ApiJson<T> }
+export type ListBody<T> = { data: ApiJson<T>[]; meta: PageMeta }
 
 /** 200：`{ data }` */
 export function ok<T>(data: T, init: ResponseInit = {}): NextResponse<DataBody<T>> {
-  return NextResponse.json({ data: toSnakeCaseKeys(data) }, withNoStore(init))
+  return NextResponse.json({ data: toApiJson(data) }, withNoStore(init))
 }
 
 /** 200：一覧（`{ data, meta }`。docs/api.md §1.4） */
 export function okList<T>(items: T[], meta: PageMeta): NextResponse<ListBody<T>> {
-  return NextResponse.json({ data: toSnakeCaseKeys(items), meta }, withNoStore({}))
+  return NextResponse.json({ data: toApiJson(items), meta }, withNoStore({}))
 }
 
 /** 201：`{ data }`。`location` を渡すと `Location` ヘッダーを付ける */
 export function created<T>(data: T, location?: string): NextResponse<DataBody<T>> {
   return NextResponse.json(
-    { data: toSnakeCaseKeys(data) },
+    { data: toApiJson(data) },
     withNoStore({ status: 201, headers: location === undefined ? {} : { Location: location } }),
   )
 }

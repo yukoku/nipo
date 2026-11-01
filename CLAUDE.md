@@ -67,7 +67,8 @@ src/
 - Route Handler は `withApi()`（`@/server/api/with-api`）で包む。例外は docs/api.md §1.5 の形式に変換され、想定外の例外は 500 `INTERNAL_ERROR`（詳細はログにだけ出す）になる
 - エラーは `@/server/api/errors` のクラスを throw する（`ValidationError`・`UnauthenticatedError`・`ForbiddenError`・`NotFoundError`・`ConflictError`（理由 `reason` 付き）・`TooManyAttemptsError`）。`NextResponse.json()` でエラーを直接返さない
 - 入力は `parseJsonBody()`・`parseSearchParams()`（`@/server/api/validation`）で読む。Zod スキーマは API と同じ snake_case のキーで書き、結果は camelCase で受け取る。`schema.parse()` を直接使うとエラーメッセージが日本語にならない
-- レスポンスは `ok()`・`okList()`・`created()`・`noContent()`（`@/server/api/response`）で返す。services からは camelCase のまま渡し、snake_case への変換はここに任せる（変換は `@/lib/case` の1か所だけ）
+- レスポンスは `ok()`・`okList()`・`created()`・`noContent()`（`@/server/api/response`）で返す。services からは camelCase・`Date` のまま渡す。キーの snake_case への変換と、`Date`（瞬間）の `+09:00` 付き文字列への変換はここで行う（`@/server/api/serialize`）
+- 報告日（`@db.Date`）・訪問時刻（`@db.Time`）は Prisma から `Date` で返るが瞬間ではないので、services で `dbDateToDateString()`・`dbTimeToTimeString()` で文字列にしてから渡す
 - エラーメッセージの項目名は `@/lib/validation/field-labels` の辞書で決まる。新しい項目を足したら辞書にも追加する。API ごとに名前が違う項目（`name` など）は `labels` で上書きする
 - フォームでも同じメッセージを出すには、`zodResolver(schema, { error: createErrorMap() })`（`@/lib/validation/error-map`）とする
 - 一覧 API のクエリは `paginationQuerySchema`（`@/schemas/pagination`）を `.extend()` して作り、`toPrismaPagination()`・`buildPageMeta()`（`@/server/api/pagination`）を使う

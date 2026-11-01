@@ -13,6 +13,11 @@ describe('レスポンスの作成', () => {
     expect(await response.json()).toEqual({ data: { sales_staff: { id: 2 } } })
   })
 
+  it('日時（Date）は +09:00 付きの JST の文字列で返す', async () => {
+    const response = ok({ submittedAt: new Date('2026-10-31T09:05:00Z') })
+    expect(await response.json()).toEqual({ data: { submitted_at: '2026-10-31T18:05:00+09:00' } })
+  })
+
   it('okList は { data, meta } を返す', async () => {
     const response = okList([{ visitCount: 3 }], buildPageMeta({ page: 1, perPage: 20 }, 1))
 

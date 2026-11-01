@@ -66,7 +66,8 @@ function convertKeys(value: unknown, convert: (key: string) => string): unknown 
   return value
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+/** `{}` やオブジェクトリテラルか（Date などのクラスのインスタンス・配列は false） */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) {
     return false
   }
