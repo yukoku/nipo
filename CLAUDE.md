@@ -74,6 +74,11 @@ src/
 - 一覧 API のクエリは `paginationQuerySchema`（`@/schemas/pagination`）を `.extend()` して作り、`toPrismaPagination()`・`buildPageMeta()`（`@/server/api/pagination`）を使う
 - ログは `logger`（`@/server/logger`）で出す（Cloud Logging 用の構造化 JSON）。`console.log` は使わない
 
+## パスワード
+- パスワードは `hashPassword()`（`@/server/auth/password`）でハッシュ化して保存する。平文をログ・DB・レスポンスに出さない
+- 照合は `verifyPassword(hash, password)` を使う。ユーザーがいない・無効なときも `verifyPassword(null, password)` を呼んで同じだけ時間をかける（応答時間からアカウントの有無を推測させない）
+- 登録・変更時の入力チェックは `passwordSchema`（`@/schemas/password`）を使う。ログイン（A-01）では使わない
+
 ## OpenAPI 定義
 - Zod スキーマを唯一の定義元にする。Route Handler の入力チェック・OpenAPI 定義（`docs/openapi.yaml`）・フォームの入力チェックで、`src/schemas/` の同じスキーマを使う
 - **API を追加・変更したら、Zod スキーマを直し、`npm run openapi:generate` を実行して `docs/openapi.yaml` もコミットする**（古いままだと `npm test` と `npm run openapi:check` が失敗する）
