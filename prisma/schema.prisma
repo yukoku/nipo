@@ -63,9 +63,29 @@ model SalesStaff {
   assignedCustomers Customer[]
   dailyReports      DailyReport[]
   comments          Comment[]
+  sessions          Session[]
 
   @@index([managerId])
   @@map("sales_staff")
+}
+
+/// ログインセッション（docs/api.md §1.2）。Cloud Run は複数インスタンスで動くため、メモリではなく DB に保存する
+model Session {
+  id           Int      @id @default(autoincrement())
+  /// Cookie の値（トークン）の SHA-256（16進数 64 文字）。生のトークンは保存しない
+  tokenHash    String   @unique @map("token_hash") @db.VarChar(64)
+  salesStaffId Int      @map("sales_staff_id")
+  /// 更新系 API の X-CSRF-Token と照合する値（#17）
+  csrfToken    String   @map("csrf_token") @db.VarChar(64)
+  /// 有効期限。アクセスがあるたびに延長する（最後のアクセスから 7 日）
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  salesStaff SalesStaff @relation(fields: [salesStaffId], references: [id], onDelete: Cascade)
+
+  @@index([salesStaffId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 /// 顧客マスタ

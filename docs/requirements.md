@@ -163,7 +163,7 @@ erDiagram
 | テーブル | Prisma モデル | 状況 |
 |---|---|---|
 | `sales_staff` / `customers` / `daily_reports` / `visit_records` / `comments` | `SalesStaff` / `Customer` / `DailyReport` / `VisitRecord` / `Comment` | `prisma/schema.prisma` に定義済み |
-| `sessions` | `Session` | Issue #16 で追加する |
+| `sessions` | `Session` | `prisma/schema.prisma` に定義済み（Issue #16） |
 | `login_attempts` | `LoginAttempt` | Issue #43 で追加する（決定事項 #18） |
 
 ### 削除時の動作（外部キー）

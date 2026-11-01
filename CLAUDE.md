@@ -74,6 +74,13 @@ src/
 - 一覧 API のクエリは `paginationQuerySchema`（`@/schemas/pagination`）を `.extend()` して作り、`toPrismaPagination()`・`buildPageMeta()`（`@/server/api/pagination`）を使う
 - ログは `logger`（`@/server/logger`）で出す（Cloud Logging 用の構造化 JSON）。`console.log` は使わない
 
+## セッション（認証）
+- セッションは `@/server/auth/session` の関数で扱う。DB にはトークンの SHA-256 だけを保存し、生のトークンをログ・DB・レスポンスに出さない
+- ログイン中のユーザーは `getCurrentUser(request)`（Route Handler）／`getCurrentUser()`（Server Component）で取得する。ログイン必須の API は `requireCurrentUser(request)` を使う（未ログインなら 401）
+- CSRF トークン（#17）が必要なときは `getCurrentSession(request)` で `session.csrfToken` を取得する
+- ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
+- Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy で行う（`session.renewed` が true のとき `setSessionCookie()`。決定事項 #26）
+
 ## パスワード
 - パスワードは `hashPassword()`（`@/server/auth/password`）でハッシュ化して保存する。平文をログ・DB・レスポンスに出さない
 - 照合は `verifyPassword(hash, password)` を使う。ユーザーがいない・無効なときも `verifyPassword(null, password)` を呼んで同じだけ時間をかける（応答時間からアカウントの有無を推測させない）
