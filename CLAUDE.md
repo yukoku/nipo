@@ -51,6 +51,7 @@ src/
 ## データ取得の方針
 - **表示（読み取り）**：Server Component から `src/server/services` の関数を直接呼ぶ。自分の REST API を HTTP で呼び出さない（無駄な通信と二重の認証処理を避けるため）
 - **登録・更新・削除**：Client Component から REST API（`/api/v1/...`）を呼ぶ。入力チェックは API 側で Zod スキーマにより必ず行い、画面側でも同じスキーマで事前にチェックする
+- 画面から API を呼ぶときは `api.get / post / put / delete`（`@/lib/api-client`）を使い、`fetch` を直接使わない。更新系には CSRF トークンが自動で付く（トークンが古ければ取り直して 1 回だけ再送する）。エラーは `ApiClientError`（`status`・`code`・`reason`・`details`）で投げられる。ログイン API で受け取ったトークンは `setCsrfToken()` で入れ、ログアウトしたら `setCsrfToken(null)` で消す
 - Server Actions は使わない（API 仕様書・OpenAPI 定義と別の入口ができ、権限チェックの漏れにつながるため）
 - 権限チェックは services の中で行う（画面・API のどちらから呼ばれても同じ判定になるようにする）
 
@@ -76,8 +77,9 @@ src/
 
 ## セッション（認証）
 - セッションは `@/server/auth/session` の関数で扱う。DB にはトークンの SHA-256 だけを保存し、生のトークンをログ・DB・レスポンスに出さない
-- ログイン中のユーザーは `getCurrentUser(request)`（Route Handler）／`getCurrentUser()`（Server Component）で取得する。ログイン必須の API は `requireCurrentUser(request)` を使う（未ログインなら 401）
-- CSRF トークン（#17）が必要なときは `getCurrentSession(request)` で `session.csrfToken` を取得する
+- **ログインが必要な API は、Route Handler の最初で `const { user } = await requireAuth(request)`（`@/server/auth/require-auth`）を呼ぶ**。未ログインなら 401、更新系（POST・PUT・PATCH・DELETE）なら CSRF トークンと Origin も確かめて、失敗したら 403（`reason: CSRF_TOKEN_INVALID`）。`requireCurrentUser()` は CSRF を確かめないので、API では使わない
+- ログイン中のユーザーは `getCurrentUser()`（Server Component）で取得する
+- ログイン API（セッションがまだない）では、`verifyOrigin(request)`（`@/server/auth/csrf`）で Origin だけを確かめる
 - ログイン時は `createSession()` → `setSessionCookie()`、ログアウト時は `deleteSession()` → `clearSessionCookie()`。営業を無効化したら `deleteSessionsForStaff()` を呼ぶ
 - Server Component では Cookie を書き換えられないため、Cookie の有効期限の延長は Route Handler と proxy で行う（`session.renewed` が true のとき `setSessionCookie()`。決定事項 #26）
 

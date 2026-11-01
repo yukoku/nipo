@@ -35,7 +35,11 @@
   - ログアウト時、または営業が無効化されたときは、DB のセッションを削除する
 - ログイン（A-01）とヘルスチェック（H-01）以外の全 API で認証が必要。未認証の場合は `401`
 - セッション Cookie の名前は `nipo_session`（決定事項 #24）
-- 更新系（POST / PUT / DELETE）はリクエストヘッダー `X-CSRF-Token` を必須とする。トークンは `GET /auth/me` のレスポンスで取得する
+- 更新系（POST / PUT / PATCH / DELETE）はリクエストヘッダー `X-CSRF-Token` を必須とする。トークンは `GET /auth/me`（またはログイン A-01）のレスポンスで取得する（決定事項 #27）
+  - ヘッダーがない・セッションのトークンと一致しない場合は `403 FORBIDDEN`（`reason: CSRF_TOKEN_INVALID`）
+  - 追加の防御として、`Origin` ヘッダーがあればこのサイトのホストと一致することも確かめる。一致しなければ同じく `403`（`reason: CSRF_TOKEN_INVALID`）
+  - ログインしていない場合は、CSRF の確認より先に `401` を返す
+  - 画面の API クライアント（`src/lib/api-client.ts`）はトークンを自動で付け、`CSRF_TOKEN_INVALID` の 403 なら取り直して 1 回だけ再送する
 
 ### 1.3 ロール
 
@@ -84,7 +88,7 @@
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | 入力チェックエラー（`details` に項目別メッセージ） |
 | 401 | `UNAUTHENTICATED` | 未ログイン・セッション切れ・認証失敗 |
-| 403 | `FORBIDDEN` | 権限なし |
+| 403 | `FORBIDDEN` | 権限なし。CSRF トークン・Origin の確認に失敗した場合は `reason: CSRF_TOKEN_INVALID` を付ける（§1.2） |
 | 404 | `NOT_FOUND` | 対象が存在しない（閲覧権限のない日報も 404 を返し、存在を推測させない） |
 | 409 | `CONFLICT` | 一意制約違反（同日の日報が既にある、メール重複）、編集不可状態。理由を `reason` で返す（下記） |
 | 429 | `TOO_MANY_ATTEMPTS` | ログイン試行回数の上限に達した（A-01） |
