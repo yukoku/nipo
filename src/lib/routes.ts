@@ -50,3 +50,25 @@ export function safeRedirectPath(value: string | null | undefined): string | nul
  * ブラウザから同じ名前のヘッダーが送られても、proxy が上書きする
  */
 export const REQUEST_PATH_HEADER = 'x-nipo-request-path'
+
+/** ヘッダーのメニューの項目 */
+export interface NavItem {
+  label: string
+  href: string
+}
+
+/** ロールごとのヘッダーのメニュー（docs/screens.md §3.1、T-UI-03）。営業・上長は日報一覧、管理者は顧客・営業 */
+export function navItemsForRole(role: Role): NavItem[] {
+  if (role === 'ADMIN') {
+    return [
+      { label: '顧客', href: '/customers' },
+      { label: '営業', href: '/staff' },
+    ]
+  }
+  return [{ label: '日報一覧', href: '/reports' }]
+}
+
+/** 現在の画面がメニューの項目に含まれるか（`/reports/101` は「日報一覧」に含まれる） */
+export function isNavItemActive(item: NavItem, pathname: string): boolean {
+  return pathname === item.href || pathname.startsWith(`${item.href}/`)
+}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
+import { CommonPartsSample } from './common-parts-sample'
 import { UiSample } from './ui-sample'
 
 export const metadata: Metadata = {
@@ -12,5 +13,10 @@ export default function UiSamplePage() {
   if (process.env.NODE_ENV === 'production') {
     notFound()
   }
-  return <UiSample />
+  return (
+    <>
+      <UiSample />
+      <CommonPartsSample />
+    </>
+  )
 }
