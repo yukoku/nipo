@@ -1,14 +1,22 @@
-## 1. 画面設計
+## 1. 要件定義（ER図を含む）
+
+@docs/requirements.md
+
+## 2. 画面設計
 
 @docs/screens.md
 
-## 2. API仕様書
+## 3. API仕様書
 
 @docs/api.md
 
-## 3. テスト仕様書
+## 4. テスト仕様書
 
 @docs/test-spec.md
+
+## 5. 仕様決定記録
+
+@docs/decisions.md
 
 # 使用技術
 **言語:** TypeScript
