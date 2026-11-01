@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ロードマップ（開発Issue一覧）
+    url: https://github.com/yukoku/nipo/issues/51
+    about: 既存のIssueと重複していないか確認してください

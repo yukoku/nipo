@@ -1,0 +1,41 @@
+name: 機能追加・作業
+description: 新しい機能の実装や、環境構築などの作業を依頼する
+title: "[作業] "
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 何を、なぜ行うのか
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: 参照
+      description: 関係する仕様書の箇所（例：docs/api.md R-02、docs/screens.md SC-03）
+      placeholder: "- docs/api.md R-02"
+  - type: textarea
+    id: tasks
+    attributes:
+      label: 作業内容
+      description: やることをチェックリストで書く
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: 完了と判断する条件。テスト仕様書のID（例：T-RPT-01〜16）で書けるものはIDで書く
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依存
+      description: 先に終わっている必要があるIssue
+      placeholder: "- #12"
