@@ -54,6 +54,7 @@ cp .env.example .env
 # 4. 動作を確認する
 npm run lint            # ESLint がエラーなく終わること
 npm run typecheck       # 型エラーがないこと
+npm test                # テストがすべて通ること
 npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と表示されること
 
 # 5. 開発サーバーを起動する
@@ -78,12 +79,14 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 | `npm run typecheck` | ルートの型を生成してから TypeScript の型チェックをする |
 | `npm run lint` | ESLint でコードをチェックする |
 | `npm run lint:fix` | ESLint で自動修正できる問題を直す |
+| `npm test` | Vitest でテストを全件実行する |
+| `npm run test:watch` | ファイルの変更を監視しながらテストを実行する |
+| `npm run test:coverage` | カバレッジ付きでテストを実行する（レポートは `coverage/index.html`） |
 
 今後、次のコマンドを追加する予定です。
 
 | コマンド | 内容 | 追加する Issue |
 |---|---|---|
-| `npm test` / `test:watch` / `test:coverage` | Vitest によるテスト | [#6](https://github.com/yukoku/nipo/issues/6) |
 | `npm run db:migrate` / `db:deploy` / `db:reset` / `db:studio` | Prisma のマイグレーション・DB 操作 | [#8](https://github.com/yukoku/nipo/issues/8) |
 | `npm run openapi:generate` | Zod スキーマから OpenAPI 定義を出力 | [#11](https://github.com/yukoku/nipo/issues/11) |
 
