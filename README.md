@@ -54,16 +54,20 @@ cp .env.example .env
 # 4. PostgreSQL（開発用DB・テスト用DB）を起動する
 docker compose up -d --wait
 
-# 5. 開発用DB にテーブルを作る（マイグレーションを適用する）
+# 5. 開発用DB にテーブルを作り（マイグレーションを適用し）、テストデータを入れる
 npm run db:migrate
+npm run db:seed
 
-# 6. 動作を確認する
+# 6. テスト用DB にもテーブルを作る（npm test の APIテストで使う）
+DATABASE_URL=postgresql://nipo:nipo@localhost:55432/nipo_test npm run db:deploy
+
+# 7. 動作を確認する
 npm run lint            # ESLint がエラーなく終わること
 npm run typecheck       # 型エラーがないこと
 npm test                # テストがすべて通ること
 npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と表示されること
 
-# 7. 開発サーバーを起動する
+# 8. 開発サーバーを起動する
 npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
@@ -73,7 +77,27 @@ npm run dev             # http://localhost:3000 を開くとトップページ�
 
 Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm を使っている場合は `nvm use` で切り替えられます。
 
-テストデータの投入の手順は、[#14](https://github.com/yukoku/nipo/issues/14) の対応に合わせてこの節に追記します。
+## テストデータ
+
+`npm run db:seed` で、[テスト仕様書 §2.2](docs/test-spec.md) のテストデータを開発用DB に入れます。
+
+- **既存のデータはすべて削除されます**（何度実行しても同じデータになります）。本番環境（`NODE_ENV=production`、または Cloud Run 上）では実行できません
+- 営業 7 人・顧客 4 社・日報 6 件（訪問記録・コメント付き）。ID はテスト仕様書と同じです（営業 1〜7、顧客 10〜13、日報 100〜105）
+- ログインするときのパスワードは全員 `Passw0rd`
+
+| ID | メールアドレス | 名前 | ロール |
+|---|---|---|---|
+| 1 | suzuki@example.com | 鈴木一郎 | 上長（山田・佐藤の上長） |
+| 2 | yamada@example.com | 山田太郎 | 営業 |
+| 3 | sato@example.com | 佐藤花子 | 営業 |
+| 4 | tanaka@example.com | 田中次郎 | 上長（伊藤の上長） |
+| 5 | ito@example.com | 伊藤三郎 | 営業 |
+| 6 | admin@example.com | 管理者 | 管理者 |
+| 7 | retired@example.com | 退職者 | 営業（無効。ログインできない） |
+
+データの中身は `src/server/db/seed/data.ts` にあります。テストでは、このファイルの定数で ID を参照します（例：`SEED_STAFF.yamada.id`、`SEED_REPORTS.draft.id`）。
+
+**DB を空にしたいとき**：`npm run db:reset` でマイグレーションを最初から適用し直した後、`npm run db:seed` を実行します（Prisma 7 の `migrate reset` は、テストデータを自動では入れません）。
 
 ## ローカルの DB
 
@@ -114,7 +138,8 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 | `npm run test:coverage` | カバレッジ付きでテストを実行する（レポートは `coverage/index.html`） |
 | `npm run db:migrate` | スキーマの変更からマイグレーションを作り、開発用DBに適用する（`prisma migrate dev`） |
 | `npm run db:deploy` | 未適用のマイグレーションを DB に適用する（`prisma migrate deploy`。本番・テスト用DBで使う） |
-| `npm run db:reset` | DB を空にして、マイグレーションを最初から適用し直す（データはすべて消える） |
+| `npm run db:reset` | DB を空にして、マイグレーションを最初から適用し直す（データはすべて消える。テストデータは入らないので、続けて `db:seed` を実行する） |
+| `npm run db:seed` | テストデータを投入する（既存のデータはすべて消える。本番では実行できない） |
 | `npm run db:studio` | Prisma Studio（ブラウザで DB の中身を見る・編集するツール）を起動する |
 | `npm run openapi:generate` | Zod スキーマから OpenAPI 定義（`docs/openapi.yaml`）を生成する。API を追加・変更したら実行してコミットする |
 | `npm run openapi:check` | `docs/openapi.yaml` が最新か確認する（古ければ失敗する。CI で使う） |

@@ -19,7 +19,8 @@
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
     "openapi:generate": "tsx scripts/openapi.ts generate",
-    "openapi:check": "tsx scripts/openapi.ts check"
+    "openapi:check": "tsx scripts/openapi.ts check",
+    "db:seed": "prisma db seed"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
