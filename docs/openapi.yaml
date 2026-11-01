@@ -1,0 +1,168 @@
+# 営業日報システム API の OpenAPI 定義
+# このファイルは `npm run openapi:generate` で生成する。手で編集しない（定義元：src/openapi/・src/schemas/）
+openapi: 3.1.0
+info:
+  title: 営業日報システム API
+  version: 1.0.0
+  description: |-
+    docs/api.md の API 仕様を、Route Handler の入力チェックと同じ Zod スキーマから生成した定義。
+    このファイルは `npm run openapi:generate` で生成する。手で編集しない。
+servers:
+  - url: /api/v1
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: nipo_session
+      description: ログイン（A-01）で発行されるセッション Cookie（`HttpOnly`・`Secure`・`SameSite=Lax`）
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: 更新系（POST / PUT / DELETE）で必須。値は `GET /auth/me`（A-03）の `csrf_token`
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+              description: 画面にそのまま表示できるメッセージ
+              example: 入力内容に誤りがあります
+            reason:
+              $ref: "#/components/schemas/ConflictReason"
+            details:
+              type: array
+              items:
+                $ref: "#/components/schemas/ValidationErrorDetail"
+              description: 400 のときだけ。項目別のメッセージ
+          required:
+            - code
+            - message
+      required:
+        - error
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - UNAUTHENTICATED
+        - FORBIDDEN
+        - NOT_FOUND
+        - CONFLICT
+        - TOO_MANY_ATTEMPTS
+        - INTERNAL_ERROR
+      description: エラーの種類。HTTP ステータスと 1 対 1 に対応する
+    ConflictReason:
+      type: string
+      enum:
+        - REPORT_ALREADY_EXISTS
+        - REPORT_LOCKED
+        - REPORT_NOT_DRAFT
+        - EMAIL_ALREADY_EXISTS
+      description: 409 のときだけ返す理由。画面はこれで表示を切り替える。理由を区別する必要がない 409 では省略
+    ValidationErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          description: 項目のパス（`visit_records[0].content` の形式）。リクエスト全体のエラーは空文字
+          example: visit_records[0].content
+        message:
+          type: string
+          example: 訪問内容は必須です
+      required:
+        - field
+        - message
+    PageMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: ページ番号
+          example: 1
+        per_page:
+          type: integer
+          description: 1ページの件数
+          example: 20
+        total_count:
+          type: integer
+          description: 全体の件数
+          example: 53
+        total_pages:
+          type: integer
+          description: 全体のページ数（0 件なら 0）
+          example: 3
+      required:
+        - page
+        - per_page
+        - total_count
+        - total_pages
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        checks:
+          type: object
+          properties:
+            db:
+              type: string
+              enum:
+                - ok
+          required:
+            - db
+          description: "`check` で指定した項目の結果。指定しなければ省略"
+      required:
+        - status
+  parameters: {}
+paths:
+  /health:
+    get:
+      operationId: H-01
+      summary: H-01 ヘルスチェック
+      description: アプリが動いているかを返す。Cloud Run の起動確認などに使う。認証不要
+      tags:
+        - ヘルスチェック
+      security: []
+      parameters:
+        - schema:
+            type: string
+            enum:
+              - db
+            description: "`db` を指定すると、DB に接続できるかも確認する"
+          required: false
+          description: "`db` を指定すると、DB に接続できるかも確認する"
+          name: check
+          in: query
+      responses:
+        "200":
+          description: アプリが動いている
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Health"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+webhooks: {}

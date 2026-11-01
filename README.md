@@ -67,7 +67,7 @@ npx prisma validate     # 「The schema at prisma/schema.prisma is valid」と�
 npm run dev             # http://localhost:3000 を開くとトップページが表示される
 ```
 
-開発サーバーで http://localhost:3000/dev/ui-sample を開くと、UI 部品（shadcn/ui）の見た目と動作を確認できます（本番環境では 404 になります）。
+開発サーバーで http://localhost:3000/dev/ui-sample を開くと、UI 部品（shadcn/ui）の見た目と動作を確認できます。http://localhost:3000/dev/api-docs では、API の OpenAPI 定義をドキュメントとして見られます（どちらも本番環境では 404 になります）。
 
 アプリから DB を使うときは、`src/server/db/prisma.ts` の `prisma` を import します（`import { prisma } from '@/server/db/prisma'`）。接続数の上限は環境変数 `DATABASE_POOL_MAX`（既定 10）で変えられます。
 
@@ -116,14 +116,10 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 | `npm run db:deploy` | 未適用のマイグレーションを DB に適用する（`prisma migrate deploy`。本番・テスト用DBで使う） |
 | `npm run db:reset` | DB を空にして、マイグレーションを最初から適用し直す（データはすべて消える） |
 | `npm run db:studio` | Prisma Studio（ブラウザで DB の中身を見る・編集するツール）を起動する |
+| `npm run openapi:generate` | Zod スキーマから OpenAPI 定義（`docs/openapi.yaml`）を生成する。API を追加・変更したら実行してコミットする |
+| `npm run openapi:check` | `docs/openapi.yaml` が最新か確認する（古ければ失敗する。CI で使う） |
 
 `npm install` / `npm ci` の後には、`postinstall` で `prisma generate` が自動で実行され、Prisma Client が `generated/prisma/` に生成されます（Git 管理外）。`prisma/schema.prisma` を変えたときは `npm run db:migrate` で Client も作り直されます。
-
-今後、次のコマンドを追加する予定です。
-
-| コマンド | 内容 | 追加する Issue |
-|---|---|---|
-| `npm run openapi:generate` | Zod スキーマから OpenAPI 定義を出力 | [#11](https://github.com/yukoku/nipo/issues/11) |
 
 ## ディレクトリ構成
 
@@ -132,11 +128,14 @@ Node.js のバージョンは `.nvmrc` で 22 系を指定しています。nvm 
 ├── src/
 │   ├── app/              # 画面（App Router）と API（app/api/v1/）
 │   ├── components/ui/    # shadcn/ui の部品（npx shadcn add で生成）
-│   └── lib/utils.ts      # cn()（クラス名の結合）
+│   ├── lib/utils.ts      # cn()（クラス名の結合）
+│   ├── openapi/          # OpenAPI 定義の登録と生成（API ごとの登録は openapi/paths/）
+│   └── schemas/          # Zod スキーマ（入力チェック・OpenAPI・フォームで共有）
+├── scripts/openapi.ts    # docs/openapi.yaml の生成・確認（npm run openapi:generate / openapi:check）
 ├── components.json       # shadcn/ui の設定
 ├── docker/postgres/      # ローカル DB の初期化スクリプト（テスト用DB の作成）
 ├── compose.yaml          # ローカルの PostgreSQL（docker compose）
-├── docs/                 # 仕様書
+├── docs/                 # 仕様書（docs/openapi.yaml は生成物。手で編集しない）
 ├── prisma/
 │   ├── schema.prisma     # DB スキーマ
 │   └── migrations/       # マイグレーション（npm run db:migrate で生成）

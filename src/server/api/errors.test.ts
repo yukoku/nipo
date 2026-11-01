@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { ConflictError, ValidationError } from '@/server/api/errors'
+import {
+  ConflictError,
+  ForbiddenError,
+  InternalError,
+  NotFoundError,
+  TooManyAttemptsError,
+  UnauthenticatedError,
+  ValidationError,
+} from '@/server/api/errors'
+import { apiErrorBodySchema } from '@/schemas/api-error'
 
 describe('ConflictError', () => {
   it.each([
@@ -29,5 +38,19 @@ describe('ValidationError', () => {
         details: [{ field: 'visit_records[0].customer_id', message: '有効な顧客を選択してください' }],
       },
     })
+  })
+})
+
+describe('エラーレスポンスの本文', () => {
+  it.each([
+    ['ValidationError', new ValidationError([{ field: 'visit_records[1].content', message: '訪問内容は必須です' }])],
+    ['UnauthenticatedError', new UnauthenticatedError()],
+    ['ForbiddenError', new ForbiddenError()],
+    ['NotFoundError', new NotFoundError()],
+    ['ConflictError', new ConflictError('REPORT_LOCKED')],
+    ['TooManyAttemptsError', new TooManyAttemptsError()],
+    ['InternalError', new InternalError()],
+  ])('%s の本文は OpenAPI の ErrorResponse（apiErrorBodySchema）と一致する', (_name, error) => {
+    expect(apiErrorBodySchema.strict().safeParse(error.toBody()).success).toBe(true)
   })
 })

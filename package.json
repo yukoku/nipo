@@ -17,7 +17,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "openapi:generate": "tsx scripts/openapi.ts generate",
+    "openapi:check": "tsx scripts/openapi.ts check"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
@@ -38,15 +40,19 @@
     "postcss": "^8.5.32",
     "prisma": "^7.10.1",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vite": "^8.3.5",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@date-fns/tz": "^1.5.0",
     "@hookform/resolvers": "^7.0.1",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@scalar/nextjs-api-reference": "^0.12.15",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.5.1",

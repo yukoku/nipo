@@ -74,6 +74,15 @@ src/
 - 一覧 API のクエリは `paginationQuerySchema`（`@/schemas/pagination`）を `.extend()` して作り、`toPrismaPagination()`・`buildPageMeta()`（`@/server/api/pagination`）を使う
 - ログは `logger`（`@/server/logger`）で出す（Cloud Logging 用の構造化 JSON）。`console.log` は使わない
 
+## OpenAPI 定義
+- Zod スキーマを唯一の定義元にする。Route Handler の入力チェック・OpenAPI 定義（`docs/openapi.yaml`）・フォームの入力チェックで、`src/schemas/` の同じスキーマを使う
+- **API を追加・変更したら、Zod スキーマを直し、`npm run openapi:generate` を実行して `docs/openapi.yaml` もコミットする**（古いままだと `npm test` と `npm run openapi:check` が失敗する）
+- API を追加するときは、`src/openapi/paths/` に `registerApi()` で登録する関数を作り、`src/openapi/document.ts` の `REGISTRARS` に足す。`request` には Route Handler で使うスキーマをそのまま渡す
+  - エラーレスポンス（400・401・403・500）と、セッション Cookie・CSRF ヘッダーの要求は `auth` と `method` から自動で付く。それ以外に返すエラー（404・409 など）は `errors` に書く
+- レスポンスのスキーマは API の形（snake_case、日時は文字列）で書き、`dataResponseSchema()`・`listResponseSchema()`（`@/schemas/response`）で包む
+- 名前を付けて `components.schemas` に出したいスキーマは `.meta({ id: 'Report' })` を付ける。`src/schemas/` では `.openapi()`（zod-to-openapi の拡張）を使わない
+- `docs/openapi.yaml` は手で編集しない。開発サーバーの http://localhost:3000/dev/api-docs で見られる（本番では 404）
+
 ## UI
 - 部品は shadcn/ui を使う。足りない部品は `npx shadcn@latest add <名前>` で追加する（`src/components/ui/` に生成される）
 - `src/components/ui/` のファイルは手で書き換えない。見た目を変えたいときは、使う側で `className` を渡すか、`src/components/` に包む部品を作る
