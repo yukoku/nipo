@@ -116,14 +116,14 @@ describe('顧客登録（SC-06 新規）', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
-  it('電話番号に数字とハイフン以外があればエラー', async () => {
+  it.each(['03(1234)5678', '--1-', '03-12345678'])('電話番号が %s なら形式エラー', async (phone) => {
     const form = renderForm()
 
     await form.user.type(form.name(), 'GHI商会')
-    await form.user.type(form.phone(), '03(1234)5678')
+    await form.user.type(form.phone(), phone)
     await form.user.click(form.save())
 
-    expect(await screen.findByText('電話番号は数字とハイフンで入力してください')).toBeInTheDocument()
+    expect(await screen.findByText('電話番号の形式が正しくありません（例：03-1234-5678）')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalled()
   })
 

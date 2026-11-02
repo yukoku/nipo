@@ -140,7 +140,7 @@ export function CustomerForm({ customer, staffOptions }: CustomerFormProps) {
         name="phone"
         control={form.control}
         render={({ field, fieldState }) => (
-          <FormField id="phone" label="電話番号" description="数字とハイフンで入力（例：03-1234-5678）" error={fieldState.error}>
+          <FormField id="phone" label="電話番号" description="市外局番から入力（例：03-1234-5678・090-1234-5678。ハイフンなしも可）" error={fieldState.error}>
             <Input
               {...field}
               value={field.value ?? ''}
