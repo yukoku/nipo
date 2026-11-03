@@ -915,6 +915,134 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: R-04
+      summary: R-04 日報更新
+      description: "本人だけ。閲覧できない・ない日報は 404、本人以外は 403、コメントが付いていれば 409（reason: REPORT_LOCKED）。report_date は受け取らない（送られても無視）。提出済みを下書きに戻すのは 400。submitted_at は初めて提出したときだけ入れる。visit_records は全件置き換え：id 付きは更新、id なしは追加、送られなかった既存行は削除し、sort_order は送られた順に振り直す。他の日報の訪問記録の id は 400。顧客は有効であること（既存行で顧客を変えていなければ確かめない）"
+      tags:
+        - 日報
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: ID
+            example: 10
+          required: true
+          description: ID
+          name: id
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  $ref: "#/components/schemas/ReportStatus"
+                problem:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 2000
+                  description: 課題・相談（提出時は必須）
+                  example: XYZ工業の値引き要求にどこまで応じるべきか相談したい。
+                plan:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 2000
+                  description: 明日やること（提出時は必須）
+                  example: ABC商事へ資料送付、DEF社アポ取り
+                visit_records:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      customer_id:
+                        type: integer
+                        minimum: 1
+                        maximum: 2147483647
+                        description: 訪問した顧客の ID。有効な顧客であること
+                        example: 10
+                      visited_at:
+                        type:
+                          - string
+                          - "null"
+                        description: 訪問時刻（`HH:mm`。JST の暦の時刻）。未入力なら null
+                        example: 10:00
+                      content:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                        description: 訪問内容
+                        example: 新商品の提案。先方部長が興味あり。
+                      id:
+                        type: integer
+                        minimum: 1
+                        maximum: 2147483647
+                        description: 既存の訪問記録の ID。省略すると新しい行として追加する
+                        example: 501
+                    required:
+                      - customer_id
+                      - content
+                  maxItems: 20
+                  description: 訪問記録（0〜20 件）の全件。既存の行を残すときは id を付ける
+              required:
+                - status
+                - visit_records
+      responses:
+        "200":
+          description: 更新後の日報
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Report"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 一意制約違反・編集できない状態（`CONFLICT`）。理由は `reason`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /customers:
     get:
       operationId: M-01

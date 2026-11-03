@@ -4,7 +4,7 @@ import { Prisma } from '@/generated/prisma/client'
 import type { CamelCaseKeys } from '@/lib/case'
 import { dateStringToDbDate, dbDateToDateString, dbTimeToTimeString, timeStringToDbTime } from '@/lib/date'
 import type { PageMeta } from '@/schemas/pagination'
-import type { ReportCreateRequest, ReportListQuery, ReportStatus } from '@/schemas/report'
+import type { ReportCreateRequest, ReportListQuery, ReportStatus, ReportUpdateRequest } from '@/schemas/report'
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/server/api/errors'
 import { buildPageMeta, toPrismaPagination } from '@/server/api/pagination'
 import {
@@ -14,13 +14,22 @@ import {
   canFilterReportsByStaff,
   reportPermissions,
   requireReportAccess,
+  requireReportEditable,
   viewableReportsWhere,
 } from '@/server/authz/report'
 import { requireRole } from '@/server/authz/role'
 import { prisma } from '@/server/db/prisma'
+import { planVisitRecordChanges } from '@/server/services/visit-record-changes'
 
 export type ReportListInput = CamelCaseKeys<ReportListQuery>
 export type ReportCreateInput = CamelCaseKeys<ReportCreateRequest>
+export type ReportUpdateInput = CamelCaseKeys<ReportUpdateRequest>
+
+/** 提出済みの日報を下書きに戻そうとしたときのメッセージ（T-RPT-65） */
+export const CANNOT_REVERT_TO_DRAFT_MESSAGE = '提出済みの日報は下書きに戻せません'
+
+/** 他の日報の訪問記録・存在しない訪問記録の id を指定したときのメッセージ（T-RPT-68） */
+export const UNKNOWN_VISIT_RECORD_MESSAGE = 'この日報の訪問記録ではありません'
 
 /** 訪問記録の顧客が、ない・無効なときのメッセージ（T-RPT-10・11・T-CUS-10） */
 export const INVALID_CUSTOMER_MESSAGE = '顧客には有効な顧客を選択してください'
@@ -201,6 +210,101 @@ export async function createReport(user: AuthzUser, input: ReportCreateInput): P
 }
 
 // ---------------------------------------------------------------------------
+// R-04 日報更新
+// ---------------------------------------------------------------------------
+
+/**
+ * R-04 日報更新（docs/api.md §4）。
+ *
+ * - 日報の行をロック（`SELECT ... FOR UPDATE`）してから読み込み、その値で判定する（決定事項 #15）。
+ *   コメントの投稿（C-01）も同じ行をロックするため、「コメントが付いたのに内容が書き換わる」ことは起きない
+ * - 閲覧できない・ない日報は 404、本人以外は 403、コメントが付いていれば 409 `REPORT_LOCKED`
+ * - 提出済みを下書きに戻すのは 400。`submitted_at` は初めて提出したときだけ入れる
+ * - 訪問記録は全件置き換え（`planVisitRecordChanges()`）。他の日報の訪問記録の `id` は 400（T-RPT-68）
+ * - 顧客は有効であること。ただし、既存の行で顧客を変えていなければ確かめない（決定事項 #36）
+ * - 報告日は変えない（スキーマで取り除く。T-RPT-66）
+ */
+export async function updateReport(user: AuthzUser, id: number, input: ReportUpdateInput): Promise<ReportView> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM daily_reports WHERE id = ${id} FOR UPDATE`
+    const current = await tx.dailyReport.findUnique({
+      where: { id },
+      select: {
+        salesStaffId: true,
+        status: true,
+        submittedAt: true,
+        salesStaff: { select: { managerId: true } },
+        visitRecords: { select: { id: true, customerId: true } },
+        _count: { select: { comments: true } },
+      },
+    })
+    if (current === null) {
+      throw new NotFoundError()
+    }
+    // 閲覧できなければ 404、本人以外は 403、コメントが付いていれば 409 REPORT_LOCKED
+    requireReportEditable(user, {
+      salesStaffId: current.salesStaffId,
+      authorManagerId: current.salesStaff.managerId,
+      status: current.status,
+      commentCount: current._count.comments,
+    })
+    if (current.status === 'SUBMITTED' && input.status === 'draft') {
+      throw ValidationError.forField('status', CANNOT_REVERT_TO_DRAFT_MESSAGE)
+    }
+
+    const changes = planVisitRecordChanges(
+      current.visitRecords.map((record) => record.id),
+      input.visitRecords.map(({ id: recordId, ...data }) => ({ id: recordId, data })),
+    )
+    if (changes.unknownIdIndexes.length > 0) {
+      throw new ValidationError(
+        changes.unknownIdIndexes.map((index) => ({ field: `visit_records[${index}].id`, message: UNKNOWN_VISIT_RECORD_MESSAGE })),
+      )
+    }
+    const currentCustomerOf = new Map(current.visitRecords.map((record) => [record.id, record.customerId]))
+    await assertActiveCustomersAt(
+      tx,
+      input.visitRecords.flatMap((record, index) =>
+        record.id !== undefined && currentCustomerOf.get(record.id) === record.customerId
+          ? []
+          : [{ index, customerId: record.customerId }],
+      ),
+    )
+
+    if (changes.deleteIds.length > 0) {
+      await tx.visitRecord.deleteMany({ where: { id: { in: changes.deleteIds }, dailyReportId: id } })
+    }
+    for (const update of changes.updates) {
+      await tx.visitRecord.update({
+        where: { id: update.id },
+        data: { ...toVisitRecordData(update.data), sortOrder: update.sortOrder },
+      })
+    }
+    if (changes.creates.length > 0) {
+      await tx.visitRecord.createMany({
+        data: changes.creates.map((create) => ({
+          ...toVisitRecordData(create.data),
+          sortOrder: create.sortOrder,
+          dailyReportId: id,
+        })),
+      })
+    }
+    const submitted = input.status === 'submitted'
+    await tx.dailyReport.update({
+      where: { id },
+      data: {
+        status: submitted ? 'SUBMITTED' : 'DRAFT',
+        problem: input.problem,
+        plan: input.plan,
+        // 初めて提出したときだけ提出日時を入れる（T-RPT-67）
+        ...(submitted && current.submittedAt === null && { submittedAt: new Date() }),
+      },
+    })
+  })
+  return getReportView(user, id)
+}
+
+// ---------------------------------------------------------------------------
 // 日報オブジェクト（R-02〜R-04 のレスポンス）
 // ---------------------------------------------------------------------------
 
@@ -300,16 +404,31 @@ function toAuthzReport(row: ReportRow) {
 // 内部用
 // ---------------------------------------------------------------------------
 
+type Db = Prisma.TransactionClient
+
 /** 訪問記録の顧客が、すべて存在して有効なことを確かめる。違う行があれば、その行の `customer_id` のエラー（400） */
 async function assertActiveCustomers(records: readonly { customerId: number }[]): Promise<void> {
-  const ids = records.map((record) => record.customerId)
-  if (ids.length === 0) {
+  await assertActiveCustomersAt(
+    prisma,
+    records.map((record, index) => ({ index, customerId: record.customerId })),
+  )
+}
+
+/**
+ * 指定した行の顧客が、存在して有効なことを確かめる。違う行があれば、その行（`index` は送られてきた配列の位置）の
+ * `customer_id` のエラー（400）
+ */
+async function assertActiveCustomersAt(db: Db, rows: readonly { index: number; customerId: number }[]): Promise<void> {
+  if (rows.length === 0) {
     return
   }
-  const active = await prisma.customer.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } })
+  const ids = [...new Set(rows.map((row) => row.customerId))]
+  const active = await db.customer.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } })
   const activeIds = new Set(active.map((customer) => customer.id))
-  const details = ids.flatMap((id, index) =>
-    activeIds.has(id) ? [] : [{ field: `visit_records[${index}].customer_id`, message: INVALID_CUSTOMER_MESSAGE }],
+  const details = rows.flatMap((row) =>
+    activeIds.has(row.customerId)
+      ? []
+      : [{ field: `visit_records[${row.index}].customer_id`, message: INVALID_CUSTOMER_MESSAGE }],
   )
   if (details.length > 0) {
     throw new ValidationError(details)
@@ -318,10 +437,14 @@ async function assertActiveCustomers(records: readonly { customerId: number }[])
 
 /** 訪問記録を DB に保存する形にする。`sort_order` は配列の順に 1 から */
 function toVisitRecordRows(records: ReportCreateInput['visitRecords']) {
-  return records.map((record, index) => ({
+  return records.map((record, index) => ({ ...toVisitRecordData(record), sortOrder: index + 1 }))
+}
+
+/** 訪問記録の 1 行を DB に保存する形にする（`sort_order` 以外） */
+function toVisitRecordData(record: { customerId: number; visitedAt: string | null; content: string }) {
+  return {
     customerId: record.customerId,
     visitedAt: record.visitedAt === null ? null : timeStringToDbTime(record.visitedAt),
     content: record.content,
-    sortOrder: index + 1,
-  }))
+  }
 }
