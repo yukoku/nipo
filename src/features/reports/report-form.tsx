@@ -2,7 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { Controller, type Resolver, useForm, useWatch } from 'react-hook-form'
+import { useMemo } from 'react'
+import { type Control, Controller, type Resolver, useFieldArray, useForm, useWatch } from 'react-hook-form'
 
 import { useConfirm } from '@/components/confirm-dialog'
 import { FormField, FormRootError, controlProps } from '@/components/form-field'
@@ -24,13 +25,13 @@ import {
   reportUpdateRequestSchema,
 } from '@/schemas/report'
 
-/** 訪問記録の 1 行（フォームの値。API と同じ snake_case） */
-export interface VisitRecordFormValue {
-  id?: number
-  customer_id: number
-  visited_at: string | null
-  content: string
-}
+import type { CustomerOption } from './customer-combobox'
+import {
+  type VisitRecordFormValue,
+  type VisitRecordsFormValues,
+  VisitRecordsField,
+  isEmptyVisitRecord,
+} from './visit-records-field'
 
 /** フォームの項目（API と同じ snake_case のキー） */
 interface FormValues {
@@ -50,14 +51,19 @@ export interface ReportFormReport {
   status: ReportStatus
   problem: string | null
   plan: string | null
-  visitRecords: (VisitRecordFormValue & { customerName: string })[]
+  visitRecords: { id: number; customerId: number; customerName: string; visitedAt: string | null; content: string }[]
 }
+
+/** 無効になった顧客の表示名に付ける印 */
+const INACTIVE_SUFFIX = '（無効）'
 
 interface ReportFormProps {
   /** 編集する日報。省略すると新規作成 */
   report?: ReportFormReport
   /** 新規作成のときの報告日の初期値（JST の今日） */
   today: string
+  /** 訪問記録の顧客セレクトの選択肢（有効な顧客だけ） */
+  customerOptions: readonly CustomerOption[]
 }
 
 /**
@@ -69,9 +75,10 @@ interface ReportFormProps {
  * - 提出済みの日報の編集では、ボタンは「更新する」だけ（下書きには戻せない）
  * - 同じ日付の日報がある（409）ときは M-04 を報告日の下に出す
  * - 保存したら日報詳細（SC-04）へ移り、M-09 を出す。未保存のまま離れるときは M-07 で確かめる（T-UI-15）
- * - 訪問記録の入力欄は #36 で作る。それまでは、編集する日報の訪問記録をそのまま送り返す（全件置き換えのため、送らないと消える）
+ * - 訪問記録は行の追加・削除・並べ替えができる。何も入力していない行は、送信する前に取り除く（docs/api.md R-02）
+ * - 編集では既存の行を `id` 付きで送る（R-04 は全件置き換え）。無効になった顧客の行は「（無効）」を付けて表示し、そのまま保存できる（決定事項 #36）
  */
-export function ReportForm({ report, today }: ReportFormProps) {
+export function ReportForm({ report, today, customerOptions }: ReportFormProps) {
   const router = useRouter()
   const confirm = useConfirm()
   const isEdit = report !== undefined
@@ -87,9 +94,28 @@ export function ReportForm({ report, today }: ReportFormProps) {
       status: report?.status ?? 'draft',
       problem: report?.problem ?? '',
       plan: report?.plan ?? '',
-      visit_records: report?.visitRecords.map(({ customerName: _name, ...record }) => record) ?? [],
+      visit_records:
+        report?.visitRecords.map((record) => ({
+          id: record.id,
+          customer_id: record.customerId,
+          visited_at: record.visitedAt ?? '',
+          content: record.content,
+        })) ?? [],
     },
   })
+  // 訪問記録の部分は、訪問記録の入力欄の型で扱う
+  const visitControl = form.control as unknown as Control<VisitRecordsFormValues>
+  const visitRecords = useFieldArray({ control: visitControl, name: 'visit_records', keyName: 'key' })
+  const customerLabels = useMemo(() => {
+    const labels = new Map(customerOptions.map((option) => [option.id, option.name]))
+    // 編集する日報の顧客で、選択肢にない（無効になった）顧客
+    for (const record of report?.visitRecords ?? []) {
+      if (!labels.has(record.customerId)) {
+        labels.set(record.customerId, `${record.customerName}${INACTIVE_SUFFIX}`)
+      }
+    }
+    return labels
+  }, [customerOptions, report])
   const { isDirty, isSubmitting, isSubmitSuccessful } = form.formState
   const { confirmLeave } = useUnsavedChangesGuard(isDirty && !isSubmitSuccessful)
   const busy = isSubmitting || isSubmitSuccessful
@@ -97,6 +123,13 @@ export function ReportForm({ report, today }: ReportFormProps) {
   /** 押したボタンのステータスで、入力チェックと保存をする */
   function submitAs(status: ReportStatus) {
     form.setValue('status', status)
+    // 何も入力していない行は取り除く（入力チェックのエラーの行番号と、画面の行がずれないよう、先に取り除く）
+    const emptyRows = form
+      .getValues('visit_records')
+      .flatMap((record, index) => (isEmptyVisitRecord(record) ? [index] : []))
+    if (emptyRows.length > 0) {
+      visitRecords.remove(emptyRows)
+    }
     // 失敗・取りやめで onSubmit が投げる例外は、ここで止める（エラーは画面に出し済み）
     form
       .handleSubmit(onSubmit)()
@@ -178,7 +211,13 @@ export function ReportForm({ report, today }: ReportFormProps) {
         <h2 id="visit-records-heading" className="text-lg font-semibold">
           訪問記録
         </h2>
-        <VisitRecordsPreview records={report?.visitRecords ?? []} />
+        <VisitRecordsField
+          control={visitControl}
+          fieldArray={visitRecords}
+          errors={form.formState.errors.visit_records}
+          customerOptions={customerOptions}
+          customerLabels={customerLabels}
+        />
       </section>
 
       <ReportTextField name="problem" label="Problem（課題・相談）" control={form.control} />
@@ -239,25 +278,5 @@ function ReportTextField({
         </FormField>
       )}
     />
-  )
-}
-
-/** 訪問記録の表示（読み取り専用。入力欄は #36 で作る） */
-function VisitRecordsPreview({ records }: { records: ReportFormReport['visitRecords'] }) {
-  if (records.length === 0) {
-    return <p className="text-sm text-muted-foreground">訪問記録はありません</p>
-  }
-  return (
-    <ol aria-label="訪問記録" className="flex flex-col gap-2">
-      {records.map((record, index) => (
-        <li key={record.id ?? index} className="rounded-lg border p-3 text-sm">
-          <div className="flex gap-3 font-medium">
-            <span>{record.visited_at ?? '--:--'}</span>
-            <span>{record.customerName}</span>
-          </div>
-          <p className="mt-1 whitespace-pre-wrap">{record.content}</p>
-        </li>
-      ))}
-    </ol>
   )
 }

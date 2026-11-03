@@ -6,6 +6,7 @@ import { todayInJst } from '@/lib/date'
 import { reportDetailPath } from '@/lib/routes'
 import { parseIdParam } from '@/server/api/params'
 import { requirePageRole, rethrowAsPageError } from '@/server/auth/page-auth'
+import { listCustomerOptions } from '@/server/services/customer'
 import { getReport } from '@/server/services/report'
 
 export const metadata: Metadata = { title: '日報編集' }
@@ -25,12 +26,14 @@ export default async function EditReportPage({ params }: PageProps<'/reports/[id
   if (!report.permissions.canEdit) {
     redirect(reportDetailPath(report.id))
   }
+  const customerOptions = await listCustomerOptions(user)
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold">日報編集</h1>
       <ReportForm
         today={todayInJst()}
+        customerOptions={customerOptions}
         report={{
           id: report.id,
           reportDate: report.reportDate,
@@ -39,9 +42,9 @@ export default async function EditReportPage({ params }: PageProps<'/reports/[id
           plan: report.plan,
           visitRecords: report.visitRecords.map((record) => ({
             id: record.id,
-            customer_id: record.customer.id,
+            customerId: record.customer.id,
             customerName: record.customer.name,
-            visited_at: record.visitedAt,
+            visitedAt: record.visitedAt,
             content: record.content,
           })),
         }}
