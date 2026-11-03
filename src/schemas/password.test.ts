@@ -53,6 +53,6 @@ describe('passwordSchema（U-07）', () => {
 
   it('空・未指定は必須エラーになる', () => {
     expect(messages(undefined)).toEqual(['パスワードは必須です'])
-    expect(messages('')[0]).toBe('パスワードは8文字以上で入力してください')
+    expect(messages('')).toEqual(['パスワードは必須です'])
   })
 })

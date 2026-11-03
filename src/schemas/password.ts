@@ -10,6 +10,7 @@ export const PASSWORD_CHARACTER_MESSAGE = 'パスワードは英字と数字を�
 /**
  * パスワードポリシー（docs/api.md S-02・S-04、docs/screens.md SC-08）。
  *
+ * - 空なら「必須」（M-02）だけを出す（文字数・文字の種類のエラーは重ねて出さない）
  * - 8 文字以上、64 文字以内
  * - 英字（A〜Z・a〜z）と数字（0〜9）をそれぞれ 1 文字以上含む
  * - 記号・空白など、それ以外の文字も使える
@@ -19,6 +20,7 @@ export const PASSWORD_CHARACTER_MESSAGE = 'パスワードは英字と数字を�
  */
 export const passwordSchema = z
   .string()
+  .min(1, { abort: true })
   .min(PASSWORD_MIN_LENGTH)
   .max(PASSWORD_MAX_LENGTH)
   .regex(/[A-Za-z]/, PASSWORD_CHARACTER_MESSAGE)
