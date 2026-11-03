@@ -37,23 +37,43 @@ const staffFields = {
   manager_id: idSchema
     .nullish()
     .transform((value) => value ?? null)
-    .meta({ description: '上長の ID。有効な上長（manager）であること。未設定なら null', example: 1 }),
+    .meta({
+      description: '上長の ID。有効な上長（manager）であること。権限が manager の人には指定できない（null のみ。決定事項 #35）。未設定なら null',
+      example: 1,
+    }),
+}
+
+/** 権限が「上長」の人に上長を指定したときのメッセージ（決定事項 #35） */
+export const MANAGER_OF_MANAGER_MESSAGE = '権限が「上長」の担当者には、上長を設定できません'
+
+/**
+ * 権限が「上長」（manager）の人には上長を設定できない（決定事項 #35）。`manager_id` は null でなければエラー。
+ * 他の項目にエラーがあっても確かめる（エラーをまとめて表示するため）
+ */
+function rejectManagerOfManager(value: { role: string; manager_id: number | null }, ctx: z.RefinementCtx): void {
+  if (value.role === 'manager' && value.manager_id !== null) {
+    ctx.addIssue({ code: 'custom', path: ['manager_id'], message: MANAGER_OF_MANAGER_MESSAGE })
+  }
 }
 
 /** S-02 営業登録のリクエスト（docs/api.md §7） */
-export const staffCreateRequestSchema = z.object({
-  ...staffFields,
-  password: passwordSchema,
-})
+export const staffCreateRequestSchema = z
+  .object({
+    ...staffFields,
+    password: passwordSchema,
+  })
+  .superRefine(rejectManagerOfManager)
 
 /** S-04 営業更新のリクエスト：S-02 の項目 ＋ `is_active`。`password` は省略・空文字なら変更しない */
-export const staffUpdateRequestSchema = z.object({
-  ...staffFields,
-  password: z
-    .preprocess((value) => (value === '' || value === null ? undefined : value), passwordSchema.optional())
-    .meta({ description: '新しいパスワード。省略・空文字・null なら変更しない' }),
-  is_active: z.boolean().meta({ description: '有効なら true。無効にするとログインできなくなり、その人のセッションはすべて削除される' }),
-})
+export const staffUpdateRequestSchema = z
+  .object({
+    ...staffFields,
+    password: z
+      .preprocess((value) => (value === '' || value === null ? undefined : value), passwordSchema.optional())
+      .meta({ description: '新しいパスワード。省略・空文字・null なら変更しない' }),
+    is_active: z.boolean().meta({ description: '有効なら true。無効にするとログインできなくなり、その人のセッションはすべて削除される' }),
+  })
+  .superRefine(rejectManagerOfManager)
 
 /** S-01 営業一覧のクエリ */
 export const staffListQuerySchema = paginationQuerySchema.extend({

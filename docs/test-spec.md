@@ -222,8 +222,8 @@
 | T-STF-02 | 高 | メール重複 | email = yamada@example.com | 409 `EMAIL_ALREADY_EXISTS` |
 | T-STF-03 | 中 | パスワードポリシー | "Pass0" / "password" / "12345678" / "Passw0rd" | 最後のみ 201、他は 400 |
 | T-STF-04 | 中 | 上長に manager 以外を指定 | manager_id = 2（sales） | 400 |
-| T-STF-05 | 高 | 上長の循環（自分） | 鈴木の manager_id に 1 を指定 | 400 |
-| T-STF-06 | 高 | 上長の循環（部下） | 鈴木を manager にした新上長 X を作り、鈴木の manager_id に X を指定 | 400 |
+| T-STF-05 | 高 | 上長の循環（自分） | 山田の manager_id に 2（自分）を指定 | 400 |
+| T-STF-06 | 高 | 上長に上長は設定できない（決定事項 #35） | role=manager・manager_id=1 で登録 / 鈴木の manager_id に 4 を指定して更新 / 山田の role を manager に変え、manager_id は 1 のまま更新 | どれも 400、`manager_id` のエラー |
 | T-STF-07 | 中 | パスワード未指定の更新 | 山田を password なしで更新 → 元のパスワードでログイン | 更新 200、ログイン成功 |
 | T-STF-08 | 高 | 部下がいる上長のロール変更 | 鈴木の role を sales に変更 | 409 |
 | T-STF-09 | 高 | 管理者の自己無効化 | admin が自分を is_active=false で更新 | 400 |
@@ -231,6 +231,7 @@
 | T-STF-11 | 高 | 上長の一覧取得 | suzuki で `GET /sales-staff` | 鈴木・山田・佐藤のみ |
 | T-STF-12 | 中 | 部下人数 | admin で `GET /sales-staff/1` | `subordinate_count = 2`（無効な退職者は数えない。決定事項 #17） |
 | T-STF-13 | 高 | 上長は登録・更新不可 | suzuki で POST / PUT | 403 |
+| T-STF-14 | 中 | 営業を上長に変更 | 山田の role を manager、manager_id を null にして更新 | 200、`manager` が null |
 
 ### 7.3 ヘルスチェック（`GET /health`）
 

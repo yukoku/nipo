@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { createErrorMap } from '@/lib/validation/error-map'
 
-import { STAFF_FIELD_LABELS, staffCreateRequestSchema, staffListQuerySchema, staffUpdateRequestSchema } from './sales-staff'
+import {
+  MANAGER_OF_MANAGER_MESSAGE,
+  STAFF_FIELD_LABELS,
+  staffCreateRequestSchema,
+  staffListQuerySchema,
+  staffUpdateRequestSchema,
+} from './sales-staff'
 
 const VALID = {
   name: '木村健太',
@@ -69,6 +75,29 @@ describe('staffCreateRequestSchema（S-02）', () => {
       expect(errors(staffCreateRequestSchema, { ...VALID, password })).toHaveProperty('password')
     }
     expect(errors(staffCreateRequestSchema, { ...VALID, password: 'Passw0rd' })).toEqual({})
+  })
+})
+
+describe('権限が「上長」の人の上長（決定事項 #35）', () => {
+  it.each([
+    ['staffCreateRequestSchema（S-02）', staffCreateRequestSchema, VALID],
+    ['staffUpdateRequestSchema（S-04）', staffUpdateRequestSchema, { ...VALID, is_active: true }],
+  ] as const)('%s：権限が manager なら上長は null だけ。指定するとエラー', (_name, schema, base) => {
+    expect(errors(schema, { ...base, role: 'manager', manager_id: 1 })).toEqual({ manager_id: MANAGER_OF_MANAGER_MESSAGE })
+    expect(schema.parse({ ...base, role: 'manager', manager_id: null }).manager_id).toBeNull()
+    expect(schema.parse({ ...base, role: 'manager', manager_id: undefined }).manager_id).toBeNull()
+  })
+
+  it('営業・管理者には上長を設定できる', () => {
+    expect(staffCreateRequestSchema.parse({ ...VALID, role: 'sales' }).manager_id).toBe(1)
+    expect(staffCreateRequestSchema.parse({ ...VALID, role: 'admin' }).manager_id).toBe(1)
+  })
+
+  it('他の項目にエラーがあっても、上長のエラーも一緒に出す', () => {
+    expect(errors(staffCreateRequestSchema, { ...VALID, name: '', role: 'manager' })).toEqual({
+      name: '氏名は必須です',
+      manager_id: MANAGER_OF_MANAGER_MESSAGE,
+    })
   })
 })
 

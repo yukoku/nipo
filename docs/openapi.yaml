@@ -963,7 +963,7 @@ paths:
                     - "null"
                   minimum: 1
                   maximum: 2147483647
-                  description: 上長の ID。有効な上長（manager）であること。未設定なら null
+                  description: "上長の ID。有効な上長（manager）であること。権限が manager の人には指定できない（null のみ。決定事項 #35）。未設定なら null"
                   example: 1
                 password:
                   type: string
@@ -1135,7 +1135,7 @@ paths:
                     - "null"
                   minimum: 1
                   maximum: 2147483647
-                  description: 上長の ID。有効な上長（manager）であること。未設定なら null
+                  description: "上長の ID。有効な上長（manager）であること。権限が manager の人には指定できない（null のみ。決定事項 #35）。未設定なら null"
                   example: 1
                 password:
                   type:

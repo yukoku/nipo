@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { POST as login } from '@/app/api/v1/auth/login/route'
 import { GET as me } from '@/app/api/v1/auth/me/route'
 import { dataResponseSchema, listResponseSchema } from '@/schemas/response'
-import { staffDetailSchema, staffSchema } from '@/schemas/sales-staff'
+import { MANAGER_OF_MANAGER_MESSAGE, staffDetailSchema, staffSchema } from '@/schemas/sales-staff'
 import { prisma } from '@/server/db/prisma'
 import { SEED_PASSWORD, SEED_STAFF } from '@/server/db/seed/data'
 import { STAFF_MESSAGES } from '@/server/services/sales-staff'
@@ -266,20 +266,31 @@ describe('PUT /api/v1/sales-staff/{id}（S-04）', () => {
   })
 
   it('T-STF-05: 自分自身を上長に指定すると 400', async () => {
-    const response = await updateAs('admin', SEED_STAFF.suzuki.id, updateBodyFor('suzuki', { manager_id: SEED_STAFF.suzuki.id }))
+    const response = await updateAs('admin', SEED_STAFF.yamada.id, updateBodyFor('yamada', { manager_id: SEED_STAFF.yamada.id }))
 
     expect(response.status).toBe(400)
     expect(response.body.error.details).toEqual([{ field: 'manager_id', message: STAFF_MESSAGES.managerCycle }])
   })
 
-  it('T-STF-06: 自分の部下（鈴木を上長にした新しい上長 X）を上長に指定すると 400', async () => {
-    const x = await createAs('admin', { ...NEW_STAFF, name: '新上長X', email: 'x@example.com', role: 'manager' })
-    expect(x.body.data.manager?.id).toBe(SEED_STAFF.suzuki.id)
+  it('T-STF-06: 権限が上長の人に上長を指定すると、登録・更新とも 400（決定事項 #35）', async () => {
+    const created = await createAs('admin', { ...NEW_STAFF, role: 'manager', manager_id: SEED_STAFF.suzuki.id })
+    const updated = await updateAs('admin', SEED_STAFF.suzuki.id, updateBodyFor('suzuki', { manager_id: SEED_STAFF.tanaka.id }))
+    // 営業を上長に変えるときに、今の上長を残したままでも 400
+    const promoted = await updateAs('admin', SEED_STAFF.yamada.id, updateBodyFor('yamada', { role: 'manager' }))
 
-    const response = await updateAs('admin', SEED_STAFF.suzuki.id, updateBodyFor('suzuki', { manager_id: x.body.data.id }))
+    for (const response of [created, updated, promoted]) {
+      expect(response.status).toBe(400)
+      expect(response.body.error.details).toEqual([{ field: 'manager_id', message: MANAGER_OF_MANAGER_MESSAGE }])
+    }
+    expect(await prisma.salesStaff.count({ where: { email: NEW_STAFF.email } })).toBe(0)
+    expect(await prisma.salesStaff.findUnique({ where: { id: SEED_STAFF.yamada.id }, select: { role: true } })).toEqual({ role: 'SALES' })
+  })
 
-    expect(response.status).toBe(400)
-    expect(response.body.error.details).toEqual([{ field: 'manager_id', message: STAFF_MESSAGES.managerCycle }])
+  it('T-STF-14: 営業を上長に変えるときは、上長を null にすれば更新できる', async () => {
+    const response = await updateAs('admin', SEED_STAFF.yamada.id, updateBodyFor('yamada', { role: 'manager', manager_id: null }))
+
+    expect(response.status).toBe(200)
+    expect(response.body.data).toMatchObject({ role: 'manager', manager: null })
   })
 
   it('上長は有効な manager だけ（営業を指定すると 400）', async () => {

@@ -121,6 +121,20 @@ export async function listDepartments(user: AuthzUser): Promise<string[]> {
   return rows.flatMap((row) => (row.department === null ? [] : [row.department]))
 }
 
+/**
+ * 上長に指定できる人の一覧（SC-08 の上長セレクトの選択肢）。有効な上長（manager）だけ。氏名の昇順。管理者のみ。
+ * `staffId`（編集する人）を渡すと、その人自身と配下（部下・部下の部下…）を除く（循環防止。T-UI-23）
+ */
+export async function listManagerOptions(user: AuthzUser, staffId?: number): Promise<{ id: number; name: string }[]> {
+  const managers = await listStaffOptions(user, ['MANAGER'])
+  if (staffId === undefined) {
+    return managers
+  }
+  const all = await prisma.salesStaff.findMany({ select: { id: true, managerId: true } })
+  const managerOf = new Map(all.map((staff) => [staff.id, staff.managerId]))
+  return managers.filter((manager) => !wouldCreateManagerCycle(staffId, manager.id, managerOf))
+}
+
 /** S-02 営業登録（管理者のみ）。メールアドレスが重複していたら 409 `EMAIL_ALREADY_EXISTS` */
 export async function createStaff(user: AuthzUser, input: StaffCreateInput): Promise<StaffView> {
   requireRole(user, 'ADMIN')
