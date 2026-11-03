@@ -4,7 +4,7 @@ import { ForbiddenError } from '@/server/api/errors'
 import { prisma } from '@/server/db/prisma'
 import { SEED_STAFF } from '@/server/db/seed/data'
 
-import { listStaffOptions } from './sales-staff'
+import { listDepartments, listStaffOptions } from './sales-staff'
 
 const admin = { id: SEED_STAFF.admin.id, role: 'ADMIN' } as const
 
@@ -24,5 +24,21 @@ describe('listStaffOptions（選択肢に使う営業の一覧）', () => {
 
   it('管理者以外は使えない', async () => {
     await expect(listStaffOptions({ id: SEED_STAFF.suzuki.id, role: 'MANAGER' }, ['SALES'])).rejects.toThrow(ForbiddenError)
+  })
+})
+
+describe('listDepartments（登録済みの部署の一覧）', () => {
+  it('部署を重複なしで昇順に返し、部署が未設定の人は含めない', async () => {
+    expect(await listDepartments(admin)).toEqual(['営業1課', '営業2課'])
+  })
+
+  it('無効な担当者だけが使っている部署も含める', async () => {
+    await prisma.salesStaff.update({ where: { id: SEED_STAFF.retired.id }, data: { department: '旧部署' } })
+
+    expect(await listDepartments(admin)).toContain('旧部署')
+  })
+
+  it('管理者以外は使えない', async () => {
+    await expect(listDepartments({ id: SEED_STAFF.suzuki.id, role: 'MANAGER' })).rejects.toThrow(ForbiddenError)
   })
 })
