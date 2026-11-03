@@ -315,11 +315,18 @@ A-03 と同じ形式のユーザー情報を返す。
 |---|---|---|---|
 | `date_from` | date | | 報告日（開始）。省略時は制限なし |
 | `date_to` | date | | 報告日（終了）。省略時は制限なし |
-| `sales_staff_id` | integer | | 担当者で絞り込み。閲覧権限のない ID を指定した場合は `403` |
+| `sales_staff_id` | integer | | 担当者で絞り込み。自分か直属の部下（無効になった部下も含む。決定事項 #16）だけ指定できる。それ以外・存在しない ID は `403` |
 | `customer_name` | string | | 顧客名の部分一致。該当顧客の訪問記録を含む日報を抽出 |
 | `page`, `per_page` | integer | | ページング |
 
 並び順：`report_date` 降順 → 担当者名昇順
+
+- `date_from`・`date_to` は両端の日を含む。`date_to` が `date_from` より前なら `400`（SC-02「開始日以降であること」）
+- `customer_name` は大文字・小文字を区別しない
+
+**エラー**
+- `400 VALIDATION_ERROR`：日付の形式が正しくない、`date_to` が `date_from` より前、ページングの値が範囲外
+- `403 FORBIDDEN`：管理者（決定事項 #7）、閲覧権限のない `sales_staff_id` を指定した
 
 **レスポンス** `200 OK`
 

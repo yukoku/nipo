@@ -8,6 +8,7 @@ import {
   type ReportAction,
   canComment,
   canDeleteReport,
+  canFilterReportsByStaff,
   canEditReport,
   canPerform,
   canViewReport,
@@ -186,5 +187,35 @@ describe('viewableReportsWhere', () => {
 
   it('管理者は何にも一致しない条件', () => {
     expect(viewableReportsWhere(ADMIN)).toEqual({ id: { in: [] } })
+  })
+})
+
+describe('canFilterReportsByStaff（R-01 の sales_staff_id）', () => {
+  const yamada = { id: AUTHOR.id, managerId: MANAGER.id }
+  const suzuki = { id: MANAGER.id, managerId: null }
+  const ito = { id: 5, managerId: OTHER_MANAGER.id }
+
+  it('自分は指定できる（営業・上長）', () => {
+    expect(canFilterReportsByStaff(AUTHOR, yamada)).toBe(true)
+    expect(canFilterReportsByStaff(MANAGER, suzuki)).toBe(true)
+  })
+
+  it('上長は直属の部下を指定できる（無効になった部下も含む。決定事項 #16）', () => {
+    expect(canFilterReportsByStaff(MANAGER, yamada)).toBe(true)
+  })
+
+  it('T-RPT-23・24: 他チームの人・同僚・上長は指定できない', () => {
+    expect(canFilterReportsByStaff(MANAGER, ito)).toBe(false)
+    expect(canFilterReportsByStaff(COLLEAGUE, yamada)).toBe(false)
+    expect(canFilterReportsByStaff(AUTHOR, suzuki)).toBe(false)
+  })
+
+  it('営業は、自分の部下という関係があっても（データの誤りなど）他人を指定できない', () => {
+    expect(canFilterReportsByStaff(COLLEAGUE, { id: 9, managerId: COLLEAGUE.id })).toBe(false)
+  })
+
+  it('管理者は自分を指定しても不可。存在しない担当者（null）も不可', () => {
+    expect(canFilterReportsByStaff(ADMIN, { id: ADMIN.id, managerId: null })).toBe(false)
+    expect(canFilterReportsByStaff(MANAGER, null)).toBe(false)
   })
 })
