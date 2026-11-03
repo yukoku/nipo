@@ -324,10 +324,6 @@ A-03 と同じ形式のユーザー情報を返す。
 - `date_from`・`date_to` は両端の日を含む。`date_to` が `date_from` より前なら `400`（SC-02「開始日以降であること」）
 - `customer_name` は大文字・小文字を区別しない
 
-**エラー**
-- `400 VALIDATION_ERROR`：日付の形式が正しくない、`date_to` が `date_from` より前、ページングの値が範囲外
-- `403 FORBIDDEN`：管理者（決定事項 #7）、閲覧権限のない `sales_staff_id` を指定した
-
 **レスポンス** `200 OK`
 
 ```json
@@ -354,6 +350,10 @@ A-03 と同じ形式のユーザー情報を返す。
 | `needs_comment` | ログインユーザーが上長で、部下の提出済み日報にコメントが 0 件の場合 `true`（SC-02 の「●」表示） |
 
 > SC-02「今日の日報を書く」ボタンは `GET /reports?sales_staff_id={自分のID}&date_from={今日}&date_to={今日}` で今日の日報の有無を確認し、あれば編集・なければ新規作成へ遷移する。
+
+**エラー**
+- `400 VALIDATION_ERROR`：日付の形式が正しくない、`date_to` が `date_from` より前、ページングの値が範囲外
+- `403 FORBIDDEN`：管理者（決定事項 #7）、閲覧権限のない `sales_staff_id` を指定した
 
 ---
 
