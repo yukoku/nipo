@@ -44,6 +44,14 @@ export function safeRedirectPath(value: string | null | undefined): string | nul
   return `${url.pathname}${url.search}${url.hash}`
 }
 
+/** 日報一覧（SC-02） */
+export const REPORT_LIST_PATH = '/reports'
+
+/** 日報詳細（SC-04） */
+export function reportDetailPath(id: number): string {
+  return `${REPORT_LIST_PATH}/${id}`
+}
+
 /**
  * proxy が、表示しようとしている画面のパス（クエリを含む）を Server Component に伝えるリクエストヘッダー。
  * Server Component からはリクエストの URL を読めないため、ログイン画面へ戻すときの `next` を作るのに使う。
