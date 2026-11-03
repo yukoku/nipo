@@ -28,7 +28,7 @@
 | API スキーマ | OpenAPI（Zod による検証） |
 | DB | PostgreSQL + Prisma |
 | テスト | Vitest |
-| デプロイ | Google Cloud Run + Cloud SQL |
+| 実行環境 | ローカルのみ（本番環境へのデプロイは行わない。決定事項 #32） |
 
 ## 必要なツール
 
