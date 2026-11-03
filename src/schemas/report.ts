@@ -203,6 +203,49 @@ export const reportListItemSchema = z
   })
   .meta({ id: 'ReportListItem' })
 
+/** 日報オブジェクトの訪問記録（docs/api.md §4 共通） */
+const visitRecordResponseSchema = z.object({
+  id: z.int(),
+  customer: staffRefSchema.meta({ description: '顧客（無効になった顧客もそのまま返す）' }),
+  visited_at: z.string().nullable().meta({ description: '訪問時刻（HH:mm）。未入力なら null', example: '10:00' }),
+  content: z.string(),
+  sort_order: z.int().meta({ description: '表示順（1 始まり）' }),
+})
+
+/** 日報オブジェクトのコメント（docs/api.md §4 共通。C-01 のレスポンスと同じ形） */
+export const commentSchema = z
+  .object({
+    id: z.int(),
+    target: z.enum(['problem', 'plan']),
+    body: z.string(),
+    commenter: staffRefSchema,
+    created_at: z.string().meta({ example: '2026-10-31T19:10:00+09:00' }),
+    updated_at: z.string().meta({ example: '2026-10-31T19:10:00+09:00' }),
+  })
+  .meta({ id: 'Comment' })
+
+/** 日報オブジェクト（docs/api.md §4 共通。R-02〜R-04 のレスポンス） */
+export const reportSchema = z
+  .object({
+    id: z.int(),
+    report_date: z.string().meta({ example: '2026-10-31' }),
+    sales_staff: staffRefSchema,
+    status: reportStatusSchema,
+    submitted_at: z.string().nullable().meta({ description: '提出日時。下書きなら null', example: '2026-10-31T18:05:00+09:00' }),
+    problem: z.string().nullable(),
+    plan: z.string().nullable(),
+    visit_records: z.array(visitRecordResponseSchema).meta({ description: 'sort_order の昇順' }),
+    comments: z.array(commentSchema).meta({ description: 'created_at の昇順' }),
+    permissions: z.object({
+      can_edit: z.boolean().meta({ description: '本人かつ編集できる状態なら true' }),
+      can_delete: z.boolean().meta({ description: '本人かつ下書きなら true' }),
+      can_comment: z.boolean().meta({ description: '作成者の直属の上長かつ提出済みなら true' }),
+    }),
+    created_at: z.string().meta({ example: '2026-10-31T17:40:00+09:00' }),
+    updated_at: z.string().meta({ example: '2026-10-31T18:05:00+09:00' }),
+  })
+  .meta({ id: 'Report' })
+
 export type ReportListQuery = z.output<typeof reportListQuerySchema>
 export type ReportStatus = z.output<typeof reportStatusSchema>
 export type VisitRecordInput = z.output<typeof visitRecordSchema>

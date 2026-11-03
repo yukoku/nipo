@@ -405,8 +405,9 @@ A-03 と同じ形式のユーザー情報を返す。
 作成した日報オブジェクト。`Location: /api/v1/reports/{id}` ヘッダーを付与。
 
 **エラー**
-- `400 VALIDATION_ERROR`：入力チェックエラー
-- `409 CONFLICT`（`reason`：`REPORT_ALREADY_EXISTS`）：同日付の日報が既に存在
+- `400 VALIDATION_ERROR`：入力チェックエラー、存在しない・無効な顧客を指定（その行の `visit_records[n].customer_id` のエラー）
+- `403 FORBIDDEN`：管理者（T-RPT-16）
+- `409 CONFLICT`（`reason`：`REPORT_ALREADY_EXISTS`）：同日付の日報が既に存在。同時に作成された場合（ボタンの 2 度押しなど）も、1 件だけ作成し、残りは同じ 409 にする
 
 ---
 
