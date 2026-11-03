@@ -25,7 +25,7 @@
 **APIスキーマ定義** OpenAPI(Zodによる検証)
 **DBスキーマ定義** Prisma.js
 **テスト** Vitest
-**デプロイ** Google Cloud Run
+**実行環境** ローカル（docker compose の PostgreSQL）。本番環境へのデプロイは行わない（決定事項 #33）。ただし Cloud Run で動かせる設計（UTC での動作・状態を DB に保存するなど）は保つ
 
 # アーキテクチャ
 
@@ -146,7 +146,7 @@ src/
 | `*.api.test.ts` | `api` | Node + テスト用DB | Route Handler の結合テスト（ファイルは直列実行） |
 
 - テスト名は日本語で、期待する動作を書く（例：`it('空のまま保存すると、各項目の下にエラーが表示される')`）。docs/test-spec.md のケースを実装するときは、テスト名の先頭に ID を付ける（例：`it('T-RPT-03: 同日の日報があれば 409 を返す')`）
-- テストは UTC で動く（本番の Cloud Run と同じ）。現在日時を使うテストは `setupFixedTime()`（`@/test/time`）で基準日時 2026-10-31 10:00 JST に固定する
+- テストは UTC で動く（サーバーが UTC で動く環境を想定。決定事項 #33）。現在日時を使うテストは `setupFixedTime()`（`@/test/time`）で基準日時 2026-10-31 10:00 JST に固定する
 - `vi.fn()` の呼び出し履歴は各テストの前に自動で消える（Vitest 5 の既定）
 - テストデータ（docs/test-spec.md §2.2）は `src/server/db/seed/data.ts` に定義している。ID は数値を直接書かず、定数で参照する（例：`SEED_STAFF.yamada.id`・`SEED_REPORTS.draft.id`）。テストデータを変えるときは、テスト仕様書も同じ PR で直す
 - `*.api.test.ts`（`api` プロジェクト）は、テスト用DB を自動で準備する。テストファイルで準備の処理を書く必要はない
