@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { LOGIN_PATH, homePathForRole, isNavItemActive, loginPath, navItemsForRole, safeRedirectPath } from './routes'
+import {
+  LOGIN_PATH,
+  REPORT_LIST_PATH,
+  homePathForRole,
+  isNavItemActive,
+  loginPath,
+  navItemsForRole,
+  reportDetailPath,
+  safeRedirectPath,
+} from './routes'
 
 describe('homePathForRole', () => {
   it('営業・上長は日報一覧、管理者は顧客一覧（T-UI-01）', () => {
@@ -72,5 +81,12 @@ describe('isNavItemActive', () => {
   it('名前が前方一致するだけの別の画面では false', () => {
     expect(isNavItemActive(reports, '/reports-archive')).toBe(false)
     expect(isNavItemActive(reports, '/customers')).toBe(false)
+  })
+})
+
+describe('日報の画面のパス', () => {
+  it('日報一覧は /reports、日報詳細は /reports/{id}', () => {
+    expect(REPORT_LIST_PATH).toBe('/reports')
+    expect(reportDetailPath(101)).toBe('/reports/101')
   })
 })
