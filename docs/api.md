@@ -440,13 +440,14 @@ A-03 と同じ形式のユーザー情報を返す。
 | 追加 | `id` なしの行 |
 | 削除 | 既存行のうち、送られなかった行 |
 
+- 同じ `visit_records[].id` を 2 回以上送った場合は `400`（2 回目以降の行の `id` のエラー。どの行で更新するか決まらないため）
 - `submitted` → `draft` への差し戻しは不可（`400`）
 - 初めて `submitted` になったときのみ `submitted_at` を設定する
 
 **レスポンス** `200 OK`：更新後の日報オブジェクト
 
 **エラー**
-- `400 VALIDATION_ERROR`：入力チェックエラー、他の日報に属する `visit_records[].id` を指定
+- `400 VALIDATION_ERROR`：入力チェックエラー、他の日報に属する `visit_records[].id` を指定、同じ `visit_records[].id` を重複して指定
 - `403 FORBIDDEN`：本人以外
 - `404 NOT_FOUND`：存在しない、または閲覧権限がない
 - `409 CONFLICT`（`reason`：`REPORT_LOCKED`）：コメントが付いているため編集不可
