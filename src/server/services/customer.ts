@@ -69,6 +69,19 @@ export async function listCustomers(
   return { items, meta: buildPageMeta(query, totalCount) }
 }
 
+/**
+ * 日報入力（SC-03）の顧客セレクトの選択肢。有効な顧客だけ（T-UI-12・T-UI-22）。顧客名の昇順。営業・上長のみ。
+ * 検索付きのセレクトで画面側で絞り込むため、ページングせずに全件を返す（顧客数は多くても数千件の想定）
+ */
+export async function listCustomerOptions(user: AuthzUser): Promise<{ id: number; name: string }[]> {
+  requireRole(user, 'SALES', 'MANAGER')
+  return prisma.customer.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+  })
+}
+
 /** M-02 顧客登録（管理者のみ）。`is_active = true` で登録する */
 export async function createCustomer(user: AuthzUser, input: CustomerCreateInput): Promise<CustomerView> {
   requireRole(user, 'ADMIN')
