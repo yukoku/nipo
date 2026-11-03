@@ -7,6 +7,7 @@ import {
   type AuthzUser,
   type ReportAction,
   canComment,
+  canModifyComment,
   canDeleteReport,
   canFilterReportsByStaff,
   canEditReport,
@@ -14,6 +15,7 @@ import {
   canViewReport,
   reportPermissions,
   requireReportAccess,
+  requireCommentOwner,
   requireReportEditable,
   viewableReportsWhere,
 } from './report'
@@ -244,5 +246,29 @@ describe('requireReportEditable（R-04 の 404・403・409 の使い分け）', 
   it('T-RPT-63: 本人でも、コメントが付いた日報は 409 REPORT_LOCKED', () => {
     expect(() => requireReportEditable(AUTHOR, COMMENTED)).toThrow(ConflictError)
     expect(() => requireReportEditable(AUTHOR, COMMENTED)).toThrow(expect.objectContaining({ reason: 'REPORT_LOCKED' }))
+  })
+})
+
+describe('requireCommentOwner（C-02・C-03 の 404 と 403 の使い分け）', () => {
+  const comment = { commenterId: MANAGER.id }
+
+  it('投稿した本人だけが更新・削除できる', () => {
+    expect(canModifyComment(MANAGER, comment)).toBe(true)
+    expect(canModifyComment(OTHER_MANAGER, comment)).toBe(false)
+    expect(() => requireCommentOwner(MANAGER, comment, SUBMITTED)).not.toThrow()
+  })
+
+  it('コメントがなければ 404', () => {
+    expect(() => requireCommentOwner(MANAGER, null, SUBMITTED)).toThrow(NotFoundError)
+  })
+
+  it('T-CMT-14: 日報を閲覧できない人（他チームの上長・同僚・管理者）は 404', () => {
+    for (const user of [OTHER_MANAGER, COLLEAGUE, ADMIN]) {
+      expect(() => requireCommentOwner(user, comment, SUBMITTED)).toThrow(NotFoundError)
+    }
+  })
+
+  it('T-CMT-14: 日報を閲覧できるが投稿者ではない人（日報を書いた本人）は 403', () => {
+    expect(() => requireCommentOwner(AUTHOR, comment, SUBMITTED)).toThrow(ForbiddenError)
   })
 })
