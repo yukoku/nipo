@@ -197,14 +197,23 @@ describe('POST /api/v1/customers（M-02）', () => {
     expect(response.status).toBe(201)
   })
 
-  it('T-CUS-03: 電話番号は数字とハイフンなら 201、括弧を含めば 400', async () => {
+  it('T-CUS-03: 電話番号は正しい形式なら 201、括弧を含めば 400', async () => {
     expect((await createAs('admin', { ...FULL_INPUT, phone: '03-1234-5678' })).status).toBe(201)
 
     const response = await createAs('admin', { ...FULL_INPUT, phone: '03(1234)5678' })
     expect(response).toMatchObject({
       status: 400,
-      body: { error: { details: [{ field: 'phone', message: '電話番号は数字とハイフンで入力してください' }] } },
+      body: { error: { details: [{ field: 'phone', message: '電話番号の形式が正しくありません（例：03-1234-5678）' }] } },
     })
+  })
+
+  it('T-CUS-03: 数字とハイフンだけでも、電話番号の形でなければ 400', async () => {
+    for (const phone of ['--1-', '0', '03--1234-5678', '1234-5678-9012']) {
+      const response = await createAs('admin', { ...FULL_INPUT, phone })
+
+      expect(response).toMatchObject({ status: 400, body: { error: { details: [{ field: 'phone' }] } } })
+    }
+    expect(await prisma.customer.count({ where: { name: FULL_INPUT.name } })).toBe(0)
   })
 
   it.each([
