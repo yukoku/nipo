@@ -12,6 +12,8 @@ export interface ReportListItem {
   salesStaff: { id: number; name: string }
   status: ReportStatus
   visitCount: number
+  /** 訪問した顧客（重複なし・訪問記録の順） */
+  customers: { id: number; name: string }[]
   commentCount: number
   needsComment: boolean
 }
@@ -19,6 +21,13 @@ export interface ReportListItem {
 export const reportDetailPath = (id: number) => `/reports/${id}`
 
 const STATUS_LABELS: Record<ReportStatus, string> = { draft: '下書き', submitted: '提出済み' }
+
+/** 訪問した顧客がないときの表示 */
+const NO_CUSTOMERS = '-'
+
+/** 訪問した顧客の表示（「、」区切り） */
+const customerNames = (report: ReportListItem) =>
+  report.customers.length === 0 ? NO_CUSTOMERS : report.customers.map((customer) => customer.name).join('、')
 
 /**
  * 日報一覧（SC-02）の一覧部分。PC 幅では表、スマートフォン幅ではカードで表示する（docs/screens.md §3.2・T-UI-25）。
@@ -37,6 +46,7 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
             <TableRow>
               <TableHead>日付</TableHead>
               <TableHead>担当者</TableHead>
+              <TableHead>顧客</TableHead>
               <TableHead className="text-right">訪問件数</TableHead>
               <TableHead>ステータス</TableHead>
               <TableHead>コメント</TableHead>
@@ -51,6 +61,7 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
                   </Link>
                 </TableCell>
                 <TableCell>{report.salesStaff.name}</TableCell>
+                <TableCell className="max-w-64 whitespace-normal">{customerNames(report)}</TableCell>
                 <TableCell className="text-right">{report.visitCount}</TableCell>
                 <TableCell>
                   <StatusBadge status={report.status} />
@@ -78,6 +89,8 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                 <dt className="text-muted-foreground">担当者</dt>
                 <dd>{report.salesStaff.name}</dd>
+                <dt className="text-muted-foreground">顧客</dt>
+                <dd>{customerNames(report)}</dd>
                 <dt className="text-muted-foreground">訪問件数</dt>
                 <dd>{report.visitCount} 件</dd>
                 <dt className="text-muted-foreground">コメント</dt>

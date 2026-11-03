@@ -70,6 +70,8 @@ export interface ReportListItemView {
   salesStaff: { id: number; name: string }
   status: ReportStatus
   visitCount: number
+  /** 訪問した顧客（重複なし・訪問記録の順） */
+  customers: { id: number; name: string }[]
   commentCount: number
   needsComment: boolean
 }
@@ -82,6 +84,11 @@ const reportListSelect = {
   salesStaff: { select: { id: true, name: true, managerId: true } },
   // 件数は日報ごとに数える。1 回の SQL の中の副問い合わせになり、日報の件数だけクエリが増える（N+1）ことはない
   _count: { select: { visitRecords: true, comments: true } },
+  // 訪問した顧客の名前（一覧の「顧客」欄）。一覧の全日報の分を 1 回の問い合わせでまとめて読む（日報ごとには増えない）
+  visitRecords: {
+    select: { customer: { select: { id: true, name: true } } },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  },
 } satisfies Prisma.DailyReportSelect
 
 type ReportListRow = Prisma.DailyReportGetPayload<{ select: typeof reportListSelect }>
@@ -143,10 +150,17 @@ function toListItem(user: AuthzUser, row: ReportListRow): ReportListItemView {
     salesStaff: { id: row.salesStaff.id, name: row.salesStaff.name },
     status: row.status === 'SUBMITTED' ? 'submitted' : 'draft',
     visitCount: row._count.visitRecords,
+    customers: uniqueCustomers(row.visitRecords.map((record) => record.customer)),
     commentCount,
     // コメントできる日報（直属の上長から見た部下の提出済み日報）で、まだコメントがない（SC-02 の「●」）
     needsComment: canComment(user, authz) && commentCount === 0,
   }
+}
+
+/** 同じ顧客を複数回訪問していても 1 回だけにする（最初に出てきた順） */
+function uniqueCustomers(customers: { id: number; name: string }[]): { id: number; name: string }[] {
+  const seen = new Set<number>()
+  return customers.filter((customer) => !seen.has(customer.id) && seen.add(customer.id))
 }
 
 /**

@@ -8,23 +8,27 @@ const push = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
 
 const YAMADA = { id: 2, name: '山田太郎' }
+const ABC = { id: 10, name: 'ABC商事' }
+const XYZ = { id: 11, name: 'XYZ工業' }
+const DEF = { id: 12, name: 'DEF物産' }
 const SATO = { id: 3, name: '佐藤花子' }
 
 const REPORTS: ReportListItem[] = [
-  { id: 103, reportDate: '2026-10-30', salesStaff: SATO, status: 'submitted', visitCount: 1, commentCount: 0, needsComment: true },
-  { id: 101, reportDate: '2026-10-30', salesStaff: YAMADA, status: 'submitted', visitCount: 1, commentCount: 0, needsComment: true },
-  { id: 100, reportDate: '2026-10-29', salesStaff: YAMADA, status: 'submitted', visitCount: 2, commentCount: 1, needsComment: false },
-  { id: 102, reportDate: '2026-10-28', salesStaff: YAMADA, status: 'draft', visitCount: 1, commentCount: 0, needsComment: false },
+  { id: 103, reportDate: '2026-10-30', salesStaff: SATO, status: 'submitted', visitCount: 1, customers: [DEF], commentCount: 0, needsComment: true },
+  { id: 101, reportDate: '2026-10-30', salesStaff: YAMADA, status: 'submitted', visitCount: 1, customers: [XYZ], commentCount: 0, needsComment: true },
+  { id: 100, reportDate: '2026-10-29', salesStaff: YAMADA, status: 'submitted', visitCount: 2, customers: [ABC, XYZ], commentCount: 1, needsComment: false },
+  { id: 102, reportDate: '2026-10-28', salesStaff: YAMADA, status: 'draft', visitCount: 0, customers: [], commentCount: 0, needsComment: false },
 ]
 
 describe('日報一覧の一覧部分（SC-02）', () => {
-  it('表に日付（YYYY/MM/DD（曜））・担当者・訪問件数・ステータス・コメント件数を表示する。下書きのコメントは「-」', () => {
+  it('表に日付（YYYY/MM/DD（曜））・担当者・顧客・訪問件数・ステータス・コメント件数を表示する。下書きのコメントは「-」', () => {
     render(<ReportList reports={REPORTS} />)
     const table = screen.getByRole('table', { name: '日報の一覧' })
 
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
       '日付',
       '担当者',
+      '顧客',
       '訪問件数',
       'ステータス',
       'コメント',
@@ -33,6 +37,7 @@ describe('日報一覧の一覧部分（SC-02）', () => {
     expect(within(rows[2]!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([
       '2026/10/29（木）',
       '山田太郎',
+      'ABC商事、XYZ工業',
       '2',
       '提出済み',
       '1 件',
@@ -40,7 +45,8 @@ describe('日報一覧の一覧部分（SC-02）', () => {
     expect(within(rows[3]!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([
       '2026/10/28（水）',
       '山田太郎',
-      '1',
+      '-',
+      '0',
       '下書き',
       '-',
     ])
@@ -72,6 +78,7 @@ describe('日報一覧の一覧部分（SC-02）', () => {
     expect(cards).toHaveLength(4)
     expect(cards[0]).toHaveAttribute('href', '/reports/103')
     expect(cards[0]).toHaveTextContent('佐藤花子')
+    expect(cards[0]).toHaveTextContent('DEF物産')
     expect(within(cards[0]!).getByRole('img', { name: '未コメント' })).toBeInTheDocument()
   })
 

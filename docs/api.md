@@ -335,6 +335,10 @@ A-03 と同じ形式のユーザー情報を返す。
       "sales_staff": { "id": 2, "name": "山田太郎" },
       "status": "submitted",
       "visit_count": 3,
+      "customers": [
+        { "id": 10, "name": "ABC商事" },
+        { "id": 11, "name": "XYZ工業" }
+      ],
       "comment_count": 2,
       "needs_comment": false
     }
@@ -346,6 +350,7 @@ A-03 と同じ形式のユーザー情報を返す。
 | 項目 | 説明 |
 |---|---|
 | `visit_count` | 訪問記録の件数 |
+| `customers` | 訪問した顧客の `{id, name}` 配列。重複なし・訪問記録の順。無効になった顧客も含む。訪問記録が 0 件なら空配列（SC-02 の「顧客」欄） |
 | `comment_count` | コメント件数 |
 | `needs_comment` | ログインユーザーが上長で、部下の提出済み日報にコメントが 0 件の場合 `true`（SC-02 の「●」表示） |
 
