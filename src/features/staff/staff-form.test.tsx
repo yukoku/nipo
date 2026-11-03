@@ -121,7 +121,6 @@ describe('営業登録（SC-08 新規）', () => {
 
     await form.fillRequired()
     await form.user.type(form.department(), '営業3課')
-    await form.user.click(screen.getByRole('radio', { name: '上長' }))
     await form.selectManager('鈴木一郎')
     await form.user.click(form.save())
 
@@ -130,11 +129,38 @@ describe('営業登録（SC-08 新規）', () => {
       email: 'kimura@example.com',
       password: 'Passw0rd',
       department: '営業3課',
-      role: 'manager',
+      role: 'sales',
       manager_id: 1,
     })
     expect(notifySuccess).toHaveBeenCalledWith('saved')
     expect(push).toHaveBeenCalledWith('/staff')
+  })
+
+  it('権限を「上長」にすると、上長を未設定に戻して選べなくし、上長なしで登録する（決定事項 #35）', async () => {
+    post.mockResolvedValue({ data: { id: 8 } })
+    const form = renderForm()
+
+    await form.fillRequired()
+    await form.selectManager('鈴木一郎')
+    await form.user.click(screen.getByRole('radio', { name: '上長' }))
+
+    expect(form.manager()).toHaveTextContent('未設定')
+    expect(form.manager()).toBeDisabled()
+    expect(screen.getByText('権限が「上長」の担当者には、上長を設定できません')).toBeInTheDocument()
+
+    await form.user.click(form.save())
+    expect(post).toHaveBeenCalledWith('/sales-staff', expect.objectContaining({ role: 'manager', manager_id: null }))
+  })
+
+  it('権限を「上長」から「営業」に戻すと、上長を選べるようになる', async () => {
+    const form = renderForm()
+
+    await form.user.click(screen.getByRole('radio', { name: '上長' }))
+    await form.user.click(screen.getByRole('radio', { name: '営業' }))
+
+    expect(form.manager()).toBeEnabled()
+    await form.selectManager('田中次郎')
+    expect(form.manager()).toHaveTextContent('田中次郎')
   })
 
   it('必須項目が空なら、各項目の下に必須エラーが出て API は呼ばない（M-02）', async () => {
@@ -277,6 +303,17 @@ describe('営業編集（SC-08 編集）', () => {
     await form.user.click(form.save())
 
     expect(put).toHaveBeenCalledWith('/sales-staff/5', expect.objectContaining({ manager_id: 4 }))
+  })
+
+  it('権限が「上長」の人を編集するときは、上長は未設定で選べない。データに上長があっても外して保存する（決定事項 #35）', async () => {
+    put.mockResolvedValue({ data: { id: 1 } })
+    const form = renderForm({ ...SUZUKI, manager: { id: 4, name: '田中次郎' } })
+
+    expect(form.manager()).toHaveTextContent('未設定')
+    expect(form.manager()).toBeDisabled()
+    await form.user.click(form.save())
+
+    expect(put).toHaveBeenCalledWith('/sales-staff/1', expect.objectContaining({ role: 'manager', manager_id: null }))
   })
 
   it('T-UI-24: 部下がいる上長を無効にして保存すると M-11 を出し、「無効にする」で保存する', async () => {

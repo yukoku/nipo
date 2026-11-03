@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { Controller, type Resolver, useForm } from 'react-hook-form'
+import { Controller, type Resolver, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 
 import { useConfirm } from '@/components/confirm-dialog'
@@ -36,8 +36,11 @@ const NO_MANAGER = 'none'
 
 const ROLES: readonly ApiRole[] = ['sales', 'manager', 'admin']
 
-/** 新規のときの入力チェック。S-02 のスキーマ（パスワード必須）に、画面にだけある `is_active` を足したもの */
-const createFormSchema = staffCreateRequestSchema.extend({ is_active: z.boolean() })
+/**
+ * 新規のときの入力チェック。S-02 のスキーマ（パスワード必須）に、画面にだけある `is_active` を足したもの。
+ * 「上長に上長を設定できない」チェック（refinement）を残すため `safeExtend()` を使う
+ */
+const createFormSchema = staffCreateRequestSchema.safeExtend({ is_active: z.boolean() })
 
 /** フォームの項目（API と同じ snake_case のキー） */
 interface FormValues {
@@ -80,6 +83,7 @@ interface StaffFormProps {
  * - 新規と編集で同じフォームを使う。入力チェックは API と同じ Zod スキーマ（新規は S-02、編集は S-04）
  * - パスワードは新規のときは必須。編集のときは空欄なら送らない（変更しない）
  * - 状態（有効・無効）は編集時だけ表示する。新規は有効で登録される
+ * - 権限が「上長」の人には上長を設定できない。「上長」を選んだら上長を未設定に戻し、選べなくする（決定事項 #35）
  * - 部下がいる上長を無効にして保存するときは、M-11 で確かめる（T-UI-24）
  * - メールアドレスの重複（409）は、M-10 をメールアドレス欄の下に出す
  * - 保存したら M-09 を出して営業一覧へ戻る。未保存のまま離れるときは M-07 で確かめる
@@ -102,7 +106,8 @@ export function StaffForm({ staff, managerOptions, isSelf = false }: StaffFormPr
       password: '',
       department: staff?.department ?? '',
       role: staff?.role ?? 'sales',
-      manager_id: staff?.manager?.id ?? null,
+      // 権限が「上長」の人には上長を設定できない（決定事項 #35）。既存のデータに上長があっても、保存すると外れる
+      manager_id: staff?.role === 'manager' ? null : (staff?.manager?.id ?? null),
       is_active: staff?.isActive ?? true,
     },
   })
@@ -111,6 +116,7 @@ export function StaffForm({ staff, managerOptions, isSelf = false }: StaffFormPr
   const { confirmLeave } = useUnsavedChangesGuard(isDirty && !isSubmitSuccessful)
 
   const selectableManagers = withCurrentManager(managerOptions, staff?.manager ?? null)
+  const isManagerRole = useWatch({ control: form.control, name: 'role' }) === 'manager'
 
   async function onSubmit(values: StaffUpdateRequest) {
     if (isEdit && needsDeactivateWarning(staff, values.is_active) && !(await confirm(CONFIRM_MESSAGES.deactivateManager))) {
@@ -231,7 +237,13 @@ export function StaffForm({ staff, managerOptions, isSelf = false }: StaffFormPr
               {...controlProps('role', fieldState.error)}
               ref={field.ref}
               value={field.value}
-              onValueChange={field.onChange}
+              onValueChange={(value) => {
+                field.onChange(value)
+                if (value === 'manager') {
+                  // 権限が「上長」の人には上長を設定できない（決定事項 #35）
+                  form.setValue('manager_id', null, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })
+                }
+              }}
               disabled={isSelf}
               aria-label="権限"
               className="flex gap-6"
@@ -250,10 +262,16 @@ export function StaffForm({ staff, managerOptions, isSelf = false }: StaffFormPr
         name="manager_id"
         control={form.control}
         render={({ field, fieldState }) => (
-          <FormField id="manager_id" label="上長" error={fieldState.error}>
+          <FormField
+            id="manager_id"
+            label="上長"
+            description={isManagerRole ? '権限が「上長」の担当者には、上長を設定できません' : undefined}
+            error={fieldState.error}
+          >
             <Select
               value={field.value == null ? NO_MANAGER : String(field.value)}
               onValueChange={(value) => field.onChange(value === NO_MANAGER ? null : Number(value))}
+              disabled={isManagerRole}
             >
               <SelectTrigger
                 {...controlProps('manager_id', fieldState.error)}
