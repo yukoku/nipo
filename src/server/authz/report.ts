@@ -144,6 +144,37 @@ export function requireReportEditable<T extends AuthzReport>(user: AuthzUser, re
   }
 }
 
+/** 判定に使うコメントの情報 */
+export interface AuthzComment {
+  /** コメントを投稿した上長の ID */
+  commenterId: number
+}
+
+/** コメントを更新・削除できるか。投稿した本人だけ（docs/api.md C-02・C-03） */
+export function canModifyComment(user: AuthzUser, comment: AuthzComment): boolean {
+  return comment.commenterId === user.id
+}
+
+/**
+ * コメントの更新・削除（C-02・C-03）ができるか確かめる。できなければ例外を投げる。
+ *
+ * - コメントがない、またはコメントが付いた日報を閲覧できない → `NotFoundError`（404）。日報と同じく存在を推測させない
+ * - 日報は閲覧できるが、投稿した本人ではない（日報を書いた本人など） → `ForbiddenError`（403。T-CMT-14）
+ */
+export function requireCommentOwner<T extends AuthzComment>(
+  user: AuthzUser,
+  comment: T | null,
+  report: AuthzReport | null,
+): asserts comment is T {
+  if (comment === null) {
+    throw new NotFoundError()
+  }
+  requireReportAccess(user, report, 'view')
+  if (!canModifyComment(user, comment)) {
+    throw new ForbiddenError()
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 一覧用（R-01）
 // ---------------------------------------------------------------------------
