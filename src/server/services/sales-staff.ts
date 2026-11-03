@@ -106,6 +106,21 @@ export async function listStaffOptions(user: AuthzUser, roles: readonly Role[]):
   })
 }
 
+/**
+ * 登録済みの部署の一覧（重複なし・昇順）。営業一覧（SC-07）の部署の絞り込みの選択肢に使う。管理者のみ。
+ * 無効な担当者の部署も含める（「無効も表示」で絞り込めるようにするため）
+ */
+export async function listDepartments(user: AuthzUser): Promise<string[]> {
+  requireRole(user, 'ADMIN')
+  const rows = await prisma.salesStaff.findMany({
+    where: { department: { not: null } },
+    select: { department: true },
+    distinct: ['department'],
+    orderBy: { department: 'asc' },
+  })
+  return rows.flatMap((row) => (row.department === null ? [] : [row.department]))
+}
+
 /** S-02 営業登録（管理者のみ）。メールアドレスが重複していたら 409 `EMAIL_ALREADY_EXISTS` */
 export async function createStaff(user: AuthzUser, input: StaffCreateInput): Promise<StaffView> {
   requireRole(user, 'ADMIN')
