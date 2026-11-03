@@ -97,16 +97,7 @@ export async function listReports(
   user: AuthzUser,
   query: ReportListInput,
 ): Promise<{ items: ReportListItemView[]; meta: PageMeta }> {
-  requireRole(user, 'SALES', 'MANAGER')
-  if (query.salesStaffId !== undefined) {
-    const staff = await prisma.salesStaff.findUnique({
-      where: { id: query.salesStaffId },
-      select: { id: true, managerId: true },
-    })
-    if (!canFilterReportsByStaff(user, staff)) {
-      throw new ForbiddenError()
-    }
-  }
+  await requireReportListAccess(user, query.salesStaffId)
 
   const where: Prisma.DailyReportWhereInput = {
     AND: [
@@ -156,6 +147,48 @@ function toListItem(user: AuthzUser, row: ReportListRow): ReportListItemView {
     // コメントできる日報（直属の上長から見た部下の提出済み日報）で、まだコメントがない（SC-02 の「●」）
     needsComment: canComment(user, authz) && commentCount === 0,
   }
+}
+
+/**
+ * 日報一覧（R-01・SC-02）を見られるか確かめる。管理者は 403。
+ * `salesStaffId` を指定したときは、自分か直属の部下（無効になった部下も含む）でなければ 403（存在しない ID も 403）。
+ * 画面では、一覧の読み込み（ストリーミング）を始める前に呼び、403 のステータスを正しく返す
+ */
+export async function requireReportListAccess(user: AuthzUser, salesStaffId?: number): Promise<void> {
+  requireRole(user, 'SALES', 'MANAGER')
+  if (salesStaffId === undefined) {
+    return
+  }
+  const staff = await prisma.salesStaff.findUnique({ where: { id: salesStaffId }, select: { id: true, managerId: true } })
+  if (!canFilterReportsByStaff(user, staff)) {
+    throw new ForbiddenError()
+  }
+}
+
+/**
+ * 日報一覧（SC-02）の担当者セレクトに出す直属の部下（有効な人だけ。ID の順）。上長以外は空。
+ * 選択肢の「全員」「自分」は画面で足す（docs/screens.md SC-02・T-UI-04）
+ */
+export async function listReportSubordinateOptions(user: AuthzUser): Promise<{ id: number; name: string }[]> {
+  requireRole(user, 'SALES', 'MANAGER')
+  if (user.role !== 'MANAGER') {
+    return []
+  }
+  return prisma.salesStaff.findMany({
+    where: { managerId: user.id, isActive: true },
+    select: { id: true, name: true },
+    orderBy: { id: 'asc' },
+  })
+}
+
+/** ログインユーザー自身の、指定した日付の日報の ID（なければ null）。SC-02 の「今日の日報を書く」に使う */
+export async function findOwnReportId(user: AuthzUser, reportDate: string): Promise<number | null> {
+  requireRole(user, 'SALES', 'MANAGER')
+  const report = await prisma.dailyReport.findUnique({
+    where: { salesStaffId_reportDate: { salesStaffId: user.id, reportDate: dateStringToDbDate(reportDate) } },
+    select: { id: true },
+  })
+  return report?.id ?? null
 }
 
 // ---------------------------------------------------------------------------
