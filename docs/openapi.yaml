@@ -168,6 +168,49 @@ components:
         - sales
         - manager
         - admin
+    ReportListItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        report_date:
+          type: string
+          example: 2026-10-31
+        sales_staff:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+        status:
+          $ref: "#/components/schemas/ReportStatus"
+        visit_count:
+          type: integer
+          description: 訪問記録の件数
+        comment_count:
+          type: integer
+          description: コメントの件数
+        needs_comment:
+          type: boolean
+          description: ログインユーザーが上長で、部下の提出済み日報にコメントが 0 件なら true（SC-02 の「●」）
+      required:
+        - id
+        - report_date
+        - sales_staff
+        - status
+        - visit_count
+        - comment_count
+        - needs_comment
+    ReportStatus:
+      type: string
+      enum:
+        - draft
+        - submitted
+      description: "`draft`（下書き）/ `submitted`（提出済み）"
     Customer:
       type: object
       properties:
@@ -451,6 +494,103 @@ paths:
                     $ref: "#/components/schemas/CurrentUser"
                 required:
                   - data
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reports:
+    get:
+      operationId: R-01
+      summary: R-01 日報一覧取得
+      description: 営業は自分の日報（下書きを含む）、上長は自分の日報と直属の部下の提出済み日報を返す。管理者は 403。並び順は報告日の降順 → 担当者名の昇順。`sales_staff_id` に自分・直属の部下以外を指定すると 403。
+      tags:
+        - 日報
+      security:
+        - sessionCookie: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            default: 1
+            description: ページ番号（初期値 1）
+          required: false
+          description: ページ番号（初期値 1）
+          name: page
+          in: query
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            description: 1ページの件数（初期値 20、最大 100）
+          required: false
+          description: 1ページの件数（初期値 20、最大 100）
+          name: per_page
+          in: query
+        - schema:
+            type: string
+            description: 報告日（開始）。省略時は制限なし
+            example: 2026-10-01
+          required: false
+          description: 報告日（開始）。省略時は制限なし
+          name: date_from
+          in: query
+        - schema:
+            type: string
+            description: 報告日（終了）。省略時は制限なし
+            example: 2026-10-01
+          required: false
+          description: 報告日（終了）。省略時は制限なし
+          name: date_to
+          in: query
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: 担当者で絞り込む。自分か直属の部下だけ指定できる（それ以外は 403）
+          required: false
+          description: 担当者で絞り込む。自分か直属の部下だけ指定できる（それ以外は 403）
+          name: sales_staff_id
+          in: query
+        - schema:
+            type: string
+            maxLength: 100
+            description: 顧客名の部分一致。その顧客の訪問記録を含む日報を返す
+          required: false
+          description: 顧客名の部分一致。その顧客の訪問記録を含む日報を返す
+          name: customer_name
+          in: query
+      responses:
+        "200":
+          description: 日報の一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReportListItem"
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+                required:
+                  - data
+                  - meta
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
           content:

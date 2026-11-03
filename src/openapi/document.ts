@@ -5,12 +5,13 @@ import { registerAuthApis } from '@/openapi/paths/auth'
 import { registerCustomerApis } from '@/openapi/paths/customer'
 import { registerSalesStaffApis } from '@/openapi/paths/sales-staff'
 import { registerHealthApis } from '@/openapi/paths/health'
+import { registerReportApis } from '@/openapi/paths/report'
 import { COMMON_SCHEMAS, createRegistry } from '@/openapi/registry'
 
 /**
  * API を登録する関数の一覧。API を追加したら、src/openapi/paths/ に登録する関数を作り、ここに足す
  */
-const REGISTRARS = [registerAuthApis, registerCustomerApis, registerSalesStaffApis, registerHealthApis]
+const REGISTRARS = [registerAuthApis, registerReportApis, registerCustomerApis, registerSalesStaffApis, registerHealthApis]
 
 type OpenApiDocument = ReturnType<OpenApiGeneratorV31['generateDocument']>
 

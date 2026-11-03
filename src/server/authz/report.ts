@@ -147,6 +147,17 @@ export function viewableReportsWhere(user: AuthzUser): Prisma.DailyReportWhereIn
   }
 }
 
+/**
+ * 一覧（R-01）を担当者（`sales_staff_id`）で絞り込めるか。自分か、直属の部下（無効になった部下も含む。決定事項 #16）だけ。
+ * 指定された担当者がいない（`staff` が null）ときも false（存在を推測させないため、権限がないのと同じ 403 にする）
+ */
+export function canFilterReportsByStaff(user: AuthzUser, staff: { id: number; managerId: number | null } | null): boolean {
+  if (staff === null || user.role === 'ADMIN') {
+    return false
+  }
+  return staff.id === user.id || (user.role === 'MANAGER' && staff.managerId === user.id)
+}
+
 // ---------------------------------------------------------------------------
 // 内部用
 // ---------------------------------------------------------------------------

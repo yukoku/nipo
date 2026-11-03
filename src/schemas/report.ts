@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
 import { isFutureDate, isValidDateString, isValidTimeString } from '@/lib/date'
-import { idSchema } from '@/schemas/id'
+import { CUSTOMER_LIMITS } from '@/schemas/customer'
+import { idQuerySchema, idSchema } from '@/schemas/id'
+import { emptyToUndefined, paginationQuerySchema } from '@/schemas/pagination'
 import { optionalText } from '@/schemas/text'
 
 /**
@@ -151,6 +153,57 @@ export const reportUpdateRequestSchema = z
   .superRefine(requireTextsWhenSubmitted)
   .superRefine(rejectDuplicateVisitRecordIds)
 
+/** 一覧（R-01）の期間で、終了日が開始日より前のときのメッセージ（SC-02「開始日以降であること」） */
+export const DATE_RANGE_ORDER_MESSAGE = '期間（終了）は期間（開始）以降の日付を指定してください'
+
+/** 一覧（R-01）の期間の日付の形式が正しくないときのメッセージ */
+export const DATE_QUERY_FORMAT_MESSAGE = '日付は YYYY-MM-DD の形式で、実在する日付を指定してください'
+
+/** 一覧（R-01）の期間の日付（`YYYY-MM-DD`）。未来日も指定できる。空の値は指定なし */
+function dateQuery(description: string) {
+  return z
+    .preprocess(
+      emptyToUndefined,
+      z.string().trim().refine(isValidDateString, { error: DATE_QUERY_FORMAT_MESSAGE }).optional(),
+    )
+    .meta({ description, example: '2026-10-01' })
+}
+
+/** R-01 日報一覧のクエリ */
+export const reportListQuerySchema = paginationQuerySchema
+  .extend({
+    date_from: dateQuery('報告日（開始）。省略時は制限なし'),
+    date_to: dateQuery('報告日（終了）。省略時は制限なし'),
+    sales_staff_id: z
+      .preprocess(emptyToUndefined, idQuerySchema.optional())
+      .meta({ description: '担当者で絞り込む。自分か直属の部下だけ指定できる（それ以外は 403）' }),
+    customer_name: z
+      .preprocess(emptyToUndefined, z.string().trim().max(CUSTOMER_LIMITS.name).optional())
+      .meta({ description: '顧客名の部分一致。その顧客の訪問記録を含む日報を返す' }),
+  })
+  .refine((query) => query.date_from === undefined || query.date_to === undefined || query.date_from <= query.date_to, {
+    error: DATE_RANGE_ORDER_MESSAGE,
+    path: ['date_to'],
+  })
+
+const staffRefSchema = z.object({ id: z.int(), name: z.string() })
+
+/** R-01 日報一覧の 1 件 */
+export const reportListItemSchema = z
+  .object({
+    id: z.int(),
+    report_date: z.string().meta({ example: '2026-10-31' }),
+    sales_staff: staffRefSchema,
+    status: reportStatusSchema,
+    visit_count: z.int().meta({ description: '訪問記録の件数' }),
+    comment_count: z.int().meta({ description: 'コメントの件数' }),
+    needs_comment: z
+      .boolean()
+      .meta({ description: 'ログインユーザーが上長で、部下の提出済み日報にコメントが 0 件なら true（SC-02 の「●」）' }),
+  })
+  .meta({ id: 'ReportListItem' })
+
+export type ReportListQuery = z.output<typeof reportListQuerySchema>
 export type ReportStatus = z.output<typeof reportStatusSchema>
 export type VisitRecordInput = z.output<typeof visitRecordSchema>
 export type VisitRecordUpdateInput = z.output<typeof visitRecordUpdateSchema>
