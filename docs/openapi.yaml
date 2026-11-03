@@ -211,6 +211,151 @@ components:
         - draft
         - submitted
       description: "`draft`（下書き）/ `submitted`（提出済み）"
+    Report:
+      type: object
+      properties:
+        id:
+          type: integer
+        report_date:
+          type: string
+          example: 2026-10-31
+        sales_staff:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+        status:
+          $ref: "#/components/schemas/ReportStatus"
+        submitted_at:
+          type:
+            - string
+            - "null"
+          description: 提出日時。下書きなら null
+          example: 2026-10-31T18:05:00+09:00
+        problem:
+          type:
+            - string
+            - "null"
+        plan:
+          type:
+            - string
+            - "null"
+        visit_records:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              customer:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                required:
+                  - id
+                  - name
+                description: 顧客（無効になった顧客もそのまま返す）
+              visited_at:
+                type:
+                  - string
+                  - "null"
+                description: 訪問時刻（HH:mm）。未入力なら null
+                example: 10:00
+              content:
+                type: string
+              sort_order:
+                type: integer
+                description: 表示順（1 始まり）
+            required:
+              - id
+              - customer
+              - visited_at
+              - content
+              - sort_order
+          description: sort_order の昇順
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+          description: created_at の昇順
+        permissions:
+          type: object
+          properties:
+            can_edit:
+              type: boolean
+              description: 本人かつ編集できる状態なら true
+            can_delete:
+              type: boolean
+              description: 本人かつ下書きなら true
+            can_comment:
+              type: boolean
+              description: 作成者の直属の上長かつ提出済みなら true
+          required:
+            - can_edit
+            - can_delete
+            - can_comment
+        created_at:
+          type: string
+          example: 2026-10-31T17:40:00+09:00
+        updated_at:
+          type: string
+          example: 2026-10-31T18:05:00+09:00
+      required:
+        - id
+        - report_date
+        - sales_staff
+        - status
+        - submitted_at
+        - problem
+        - plan
+        - visit_records
+        - comments
+        - permissions
+        - created_at
+        - updated_at
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        target:
+          type: string
+          enum:
+            - problem
+            - plan
+        body:
+          type: string
+        commenter:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+        created_at:
+          type: string
+          example: 2026-10-31T19:10:00+09:00
+        updated_at:
+          type: string
+          example: 2026-10-31T19:10:00+09:00
+      required:
+        - id
+        - target
+        - body
+        - commenter
+        - created_at
+        - updated_at
     Customer:
       type: object
       properties:
@@ -593,6 +738,117 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: R-02
+      summary: R-02 日報作成
+      description: "営業・上長だけ（管理者は 403）。担当者はログインユーザーで固定する。提出（submitted）なら Problem・Plan が必須。訪問記録は 0〜20 件で、顧客は有効な顧客だけ。配列の順に sort_order を 1 から振る。同じ日付の日報が既にあれば 409（reason: REPORT_ALREADY_EXISTS）。`Location` ヘッダーに作成した日報の URL を付ける"
+      tags:
+        - 日報
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                report_date:
+                  type: string
+                  minLength: 1
+                  description: 報告日（JST の暦の日付）。未来日は指定できない
+                  example: 2026-10-31
+                status:
+                  $ref: "#/components/schemas/ReportStatus"
+                problem:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 2000
+                  description: 課題・相談（提出時は必須）
+                  example: XYZ工業の値引き要求にどこまで応じるべきか相談したい。
+                plan:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 2000
+                  description: 明日やること（提出時は必須）
+                  example: ABC商事へ資料送付、DEF社アポ取り
+                visit_records:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      customer_id:
+                        type: integer
+                        minimum: 1
+                        maximum: 2147483647
+                        description: 訪問した顧客の ID。有効な顧客であること
+                        example: 10
+                      visited_at:
+                        type:
+                          - string
+                          - "null"
+                        description: 訪問時刻（`HH:mm`。JST の暦の時刻）。未入力なら null
+                        example: 10:00
+                      content:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                        description: 訪問内容
+                        example: 新商品の提案。先方部長が興味あり。
+                    required:
+                      - customer_id
+                      - content
+                  maxItems: 20
+                  description: 訪問記録（0〜20 件）。配列の順に sort_order を 1 から付ける
+              required:
+                - report_date
+                - status
+                - visit_records
+      responses:
+        "201":
+          description: 作成した日報
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Report"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 権限なし・CSRF トークンなし（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 一意制約違反・編集できない状態（`CONFLICT`）。理由は `reason`
           content:
             application/json:
               schema:

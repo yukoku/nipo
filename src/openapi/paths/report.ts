@@ -1,8 +1,8 @@
 import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi'
 
 import { registerApi } from '@/openapi/registry'
-import { reportListItemSchema, reportListQuerySchema } from '@/schemas/report'
-import { listResponseSchema } from '@/schemas/response'
+import { reportCreateRequestSchema, reportListItemSchema, reportListQuerySchema, reportSchema } from '@/schemas/report'
+import { dataResponseSchema, listResponseSchema } from '@/schemas/response'
 
 const TAG = '日報'
 
@@ -21,5 +21,21 @@ export function registerReportApis(registry: OpenAPIRegistry): void {
     tag: TAG,
     request: { query: reportListQuerySchema },
     response: { status: 200, description: '日報の一覧', schema: listResponseSchema(reportListItemSchema) },
+  })
+
+  registerApi(registry, {
+    method: 'post',
+    path: '/reports',
+    id: 'R-02',
+    summary: '日報作成',
+    description: [
+      '営業・上長だけ（管理者は 403）。担当者はログインユーザーで固定する。',
+      '提出（submitted）なら Problem・Plan が必須。訪問記録は 0〜20 件で、顧客は有効な顧客だけ。配列の順に sort_order を 1 から振る。',
+      '同じ日付の日報が既にあれば 409（reason: REPORT_ALREADY_EXISTS）。`Location` ヘッダーに作成した日報の URL を付ける',
+    ].join(''),
+    tag: TAG,
+    request: { body: reportCreateRequestSchema },
+    errors: [409],
+    response: { status: 201, description: '作成した日報', schema: dataResponseSchema(reportSchema) },
   })
 }
