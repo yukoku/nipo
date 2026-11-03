@@ -3,11 +3,15 @@ import { describe, expect, it } from 'vitest'
 import {
   LOGIN_PATH,
   REPORT_LIST_PATH,
+  REPORT_LIST_QUERY_PARAM,
+  REPORT_NEW_PATH,
   homePathForRole,
   isNavItemActive,
   loginPath,
   navItemsForRole,
   reportDetailPath,
+  reportEditPath,
+  reportListPath,
   safeRedirectPath,
 } from './routes'
 
@@ -88,5 +92,23 @@ describe('日報の画面のパス', () => {
   it('日報一覧は /reports、日報詳細は /reports/{id}', () => {
     expect(REPORT_LIST_PATH).toBe('/reports')
     expect(reportDetailPath(101)).toBe('/reports/101')
+    expect(reportEditPath(101)).toBe('/reports/101/edit')
+    expect(REPORT_NEW_PATH).toBe('/reports/new')
+  })
+
+  it('日報詳細のパスに、一覧の検索条件（クエリ文字列）を付けられる', () => {
+    expect(REPORT_LIST_QUERY_PARAM).toBe('list')
+    expect(reportDetailPath(101, '?date_from=2026-10-01&page=2')).toBe(
+      '/reports/101?list=date_from%3D2026-10-01%26page%3D2',
+    )
+    expect(reportDetailPath(101, '')).toBe('/reports/101')
+  })
+
+  it('日報一覧のパスは、受け取った検索条件をクエリとして作り直す（別の画面・サイトへは移らない）', () => {
+    expect(reportListPath('date_from=2026-10-01&page=2')).toBe('/reports?date_from=2026-10-01&page=2')
+    expect(reportListPath('?customer_name=ABC商事')).toBe('/reports?customer_name=ABC%E5%95%86%E4%BA%8B')
+    expect(reportListPath(null)).toBe('/reports')
+    expect(reportListPath('')).toBe('/reports')
+    expect(reportListPath('//evil.example/#x')).toBe('/reports?%2F%2Fevil.example%2F%23x=')
   })
 })

@@ -47,9 +47,45 @@ export function safeRedirectPath(value: string | null | undefined): string | nul
 /** 日報一覧（SC-02） */
 export const REPORT_LIST_PATH = '/reports'
 
-/** 日報詳細（SC-04） */
-export function reportDetailPath(id: number): string {
-  return `${REPORT_LIST_PATH}/${id}`
+/**
+ * 日報詳細（SC-04）に、日報一覧の検索条件を引き継ぐクエリパラメータ名。
+ * 値は一覧のクエリ文字列（例：`date_from=2026-10-01&page=2`）。「一覧へ戻る」で同じ条件の一覧に戻すために使う（T-UI-06）
+ */
+export const REPORT_LIST_QUERY_PARAM = 'list'
+
+/**
+ * 日報詳細（SC-04）。`listQuery`（一覧のクエリ文字列。先頭の `?` はあってもなくてもよい）を渡すと、
+ * 「一覧へ戻る」で戻る一覧の検索条件として URL に付ける
+ */
+export function reportDetailPath(id: number, listQuery?: string): string {
+  const query = normalizeQuery(listQuery)
+  const path = `${REPORT_LIST_PATH}/${id}`
+  return query === '' ? path : `${path}?${new URLSearchParams({ [REPORT_LIST_QUERY_PARAM]: query }).toString()}`
+}
+
+/** 日報編集（SC-03 編集） */
+export function reportEditPath(id: number): string {
+  return `${REPORT_LIST_PATH}/${id}/edit`
+}
+
+/** 日報作成（SC-03 新規） */
+export const REPORT_NEW_PATH = `${REPORT_LIST_PATH}/new`
+
+/**
+ * 日報一覧（SC-02）。`listQuery`（日報詳細の URL で受け取った一覧のクエリ文字列）があれば、その検索条件を付ける。
+ * 値はだれでも書き換えられるが、パスは常に日報一覧に固定し、クエリとして作り直すので、別の画面・サイトへは移らない
+ */
+export function reportListPath(listQuery?: string | null): string {
+  const query = normalizeQuery(listQuery ?? undefined)
+  return query === '' ? REPORT_LIST_PATH : `${REPORT_LIST_PATH}?${query}`
+}
+
+/** クエリ文字列を `URLSearchParams` で作り直す（先頭の `?` を除き、`#` などのクエリ以外の部分を含めない） */
+function normalizeQuery(query: string | undefined): string {
+  if (query === undefined) {
+    return ''
+  }
+  return new URLSearchParams(query.replace(/^\?/, '')).toString()
 }
 
 /**

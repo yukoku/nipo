@@ -10,7 +10,8 @@ import { ReportListSkeleton } from '@/features/reports/report-list-skeleton'
 import { ReportSearchForm } from '@/features/reports/report-search-form'
 import { toCamelCaseKeys } from '@/lib/case'
 import { startOfMonthInJst, todayInJst } from '@/lib/date'
-import { type SearchParamsRecord, firstValues } from '@/lib/list-query'
+import { type SearchParamsRecord, buildQueryString, firstValues } from '@/lib/list-query'
+import { REPORT_NEW_PATH, reportEditPath } from '@/lib/routes'
 import { DEFAULT_PER_PAGE } from '@/schemas/pagination'
 import { reportListQuerySchema } from '@/schemas/report'
 import { requirePageRole, rethrowAsPageError } from '@/server/auth/page-auth'
@@ -42,7 +43,7 @@ export default async function ReportsPage({ searchParams }: PageProps<'/reports'
     findOwnReportId(user, today),
   ])
   // 今日の日報がなければ新規作成、あれば編集へ（T-UI-07・08）
-  const todayHref = todayReportId === null ? '/reports/new' : `/reports/${todayReportId}/edit`
+  const todayHref = todayReportId === null ? REPORT_NEW_PATH : reportEditPath(todayReportId)
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,22 +80,19 @@ export default async function ReportsPage({ searchParams }: PageProps<'/reports'
 /** 一覧部分（件数・一覧・ページ送り）。読み込みを待つ間はスケルトンを出す */
 async function ReportResults({ user, query }: { user: AuthzUser; query: ReportListInput }) {
   const { items, meta } = await listReports(user, query)
+  const conditions = {
+    date_from: query.dateFrom,
+    date_to: query.dateTo,
+    sales_staff_id: query.salesStaffId,
+    customer_name: query.customerName,
+  }
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {meta.total_count} 件
       </p>
-      <ReportList reports={items} />
-      <ListPagination
-        meta={meta}
-        pathname="/reports"
-        query={{
-          date_from: query.dateFrom,
-          date_to: query.dateTo,
-          sales_staff_id: query.salesStaffId,
-          customer_name: query.customerName,
-        }}
-      />
+      <ReportList reports={items} listQuery={buildQueryString({ ...conditions, page: query.page })} />
+      <ListPagination meta={meta} pathname="/reports" query={conditions} />
     </div>
   )
 }

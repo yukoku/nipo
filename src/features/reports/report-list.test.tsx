@@ -82,6 +82,16 @@ describe('日報一覧の一覧部分（SC-02）', () => {
     expect(within(cards[0]!).getByRole('img', { name: '未コメント' })).toBeInTheDocument()
   })
 
+  it('行のリンクに、今の検索条件を引き継ぐ（詳細の「一覧へ戻る」で同じ一覧に戻すため。T-UI-06）', () => {
+    render(<ReportList reports={REPORTS} listQuery="?customer_name=ABC&page=2" />)
+
+    const table = screen.getByRole('table', { name: '日報の一覧' })
+    expect(within(table).getByRole('link', { name: '2026/10/29（木）' })).toHaveAttribute(
+      'href',
+      '/reports/100?list=customer_name%3DABC%26page%3D2',
+    )
+  })
+
   it('該当する日報がなければ、その旨を表示する', () => {
     render(<ReportList reports={[]} />)
 
