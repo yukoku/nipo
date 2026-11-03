@@ -5,7 +5,7 @@ import type { CamelCaseKeys } from '@/lib/case'
 import { dateStringToDbDate, dbDateToDateString, dbTimeToTimeString, timeStringToDbTime } from '@/lib/date'
 import type { PageMeta } from '@/schemas/pagination'
 import type { ReportCreateRequest, ReportListQuery, ReportStatus } from '@/schemas/report'
-import { ConflictError, ForbiddenError, ValidationError } from '@/server/api/errors'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/server/api/errors'
 import { buildPageMeta, toPrismaPagination } from '@/server/api/pagination'
 import {
   type AuthzUser,
@@ -13,6 +13,7 @@ import {
   canComment,
   canFilterReportsByStaff,
   reportPermissions,
+  requireReportAccess,
   viewableReportsWhere,
 } from '@/server/authz/report'
 import { requireRole } from '@/server/authz/role'
@@ -234,6 +235,23 @@ const reportSelect = {
 type ReportRow = Prisma.DailyReportGetPayload<{ select: typeof reportSelect }>
 
 /**
+ * R-03 日報詳細（docs/api.md §4）。
+ *
+ * - 本人は自分の日報（下書きを含む）、上長は直属の部下の提出済み日報だけ閲覧できる
+ * - 日報がない・閲覧できないときは、どちらも同じ 404（存在を推測させない。T-RPT-43〜46）。管理者も 404（決定事項 #7）
+ * - 顧客が無効になっていても、訪問記録の顧客名はそのまま返す（T-CUS-09）
+ */
+export async function getReport(user: AuthzUser, id: number): Promise<ReportView> {
+  const row = await prisma.dailyReport.findUnique({ where: { id }, select: reportSelect })
+  if (row === null) {
+    throw new NotFoundError()
+  }
+  // 閲覧できなければ、ないのと同じ NotFoundError（404）
+  requireReportAccess(user, toAuthzReport(row), 'view')
+  return toReportView(user, row)
+}
+
+/**
  * 日報オブジェクトを読み込む。権限の確認はしない（呼び出し側で確かめた日報だけに使う）。
  * `permissions` はログインユーザーから見た値にする
  */
@@ -262,14 +280,19 @@ function toReportView(user: AuthzUser, row: ReportRow): ReportView {
       ...comment,
       target: comment.target === 'PROBLEM' ? 'problem' : 'plan',
     })),
-    permissions: reportPermissions(user, {
-      salesStaffId: row.salesStaffId,
-      authorManagerId: row.salesStaff.managerId,
-      status: row.status,
-      commentCount: row.comments.length,
-    }),
+    permissions: reportPermissions(user, toAuthzReport(row)),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  }
+}
+
+/** 権限の判定に使う形にする */
+function toAuthzReport(row: ReportRow) {
+  return {
+    salesStaffId: row.salesStaffId,
+    authorManagerId: row.salesStaff.managerId,
+    status: row.status,
+    commentCount: row.comments.length,
   }
 }
 
