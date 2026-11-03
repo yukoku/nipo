@@ -196,6 +196,9 @@ export const reportListItemSchema = z
     sales_staff: staffRefSchema,
     status: reportStatusSchema,
     visit_count: z.int().meta({ description: '訪問記録の件数' }),
+    customers: z
+      .array(staffRefSchema)
+      .meta({ description: '訪問した顧客（重複なし・訪問記録の順。無効になった顧客も含む）。SC-02 の「顧客」欄' }),
     comment_count: z.int().meta({ description: 'コメントの件数' }),
     needs_comment: z
       .boolean()

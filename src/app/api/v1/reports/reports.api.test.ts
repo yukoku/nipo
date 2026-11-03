@@ -5,7 +5,7 @@ import { dateStringToDbDate } from '@/lib/date'
 import { DATE_RANGE_ORDER_MESSAGE, reportListItemSchema } from '@/schemas/report'
 import { listResponseSchema } from '@/schemas/response'
 import { prisma } from '@/server/db/prisma'
-import { SEED_REPORTS, SEED_STAFF } from '@/server/db/seed/data'
+import { SEED_CUSTOMERS, SEED_REPORTS, SEED_STAFF } from '@/server/db/seed/data'
 import { loginAs, type SeedStaffKey } from '@/test/api/auth'
 import { callRoute } from '@/test/api/route'
 
@@ -17,6 +17,7 @@ type ListItem = {
   sales_staff: { id: number; name: string }
   status: 'draft' | 'submitted'
   visit_count: number
+  customers: { id: number; name: string }[]
   comment_count: number
   needs_comment: boolean
 }
@@ -168,6 +169,27 @@ describe('GET /api/v1/reports（R-01）', () => {
     expect(byId(response.body, SEED_REPORTS.commented.id)).toMatchObject({ visit_count: 2, comment_count: 1 })
     expect(byId(response.body, SEED_REPORTS.submitted.id)).toMatchObject({ visit_count: 1, comment_count: 0 })
     expect(byId(response.body, SEED_REPORTS.draft.id)).toMatchObject({ visit_count: 1, comment_count: 0 })
+  })
+
+  it('customers に訪問した顧客を、重複なし・訪問記録の順で返す（無効になった顧客も含む。訪問 0 件なら空）', async () => {
+    // 100 の訪問記録（ABC商事 → XYZ工業）の後ろに、ABC商事（重複）と旧取引先（無効）を足す
+    await prisma.visitRecord.createMany({
+      data: [
+        { dailyReportId: SEED_REPORTS.commented.id, customerId: SEED_CUSTOMERS.abc.id, content: '再訪問', sortOrder: 3 },
+        { dailyReportId: SEED_REPORTS.commented.id, customerId: SEED_CUSTOMERS.old.id, content: '挨拶', sortOrder: 4 },
+      ],
+    })
+    await prisma.visitRecord.deleteMany({ where: { dailyReportId: SEED_REPORTS.draft.id } })
+
+    const response = await listAs('yamada')
+
+    expect(byId(response.body, SEED_REPORTS.commented.id)?.customers).toEqual([
+      { id: SEED_CUSTOMERS.abc.id, name: 'ABC商事' },
+      { id: SEED_CUSTOMERS.xyz.id, name: 'XYZ工業' },
+      { id: SEED_CUSTOMERS.old.id, name: '旧取引先' },
+    ])
+    expect(byId(response.body, SEED_REPORTS.commented.id)?.visit_count).toBe(4)
+    expect(byId(response.body, SEED_REPORTS.draft.id)?.customers).toEqual([])
   })
 
   it('T-RPT-29: 上長から見て、部下の提出済み日報でコメントが 0 件なら needs_comment=true', async () => {

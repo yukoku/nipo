@@ -191,6 +191,19 @@ components:
         visit_count:
           type: integer
           description: 訪問記録の件数
+        customers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+            required:
+              - id
+              - name
+          description: 訪問した顧客（重複なし・訪問記録の順。無効になった顧客も含む）。SC-02 の「顧客」欄
         comment_count:
           type: integer
           description: コメントの件数
@@ -203,6 +216,7 @@ components:
         - sales_staff
         - status
         - visit_count
+        - customers
         - comment_count
         - needs_comment
     ReportStatus:

@@ -70,6 +70,8 @@ export interface ReportListItemView {
   salesStaff: { id: number; name: string }
   status: ReportStatus
   visitCount: number
+  /** 訪問した顧客（重複なし・訪問記録の順） */
+  customers: { id: number; name: string }[]
   commentCount: number
   needsComment: boolean
 }
@@ -82,6 +84,11 @@ const reportListSelect = {
   salesStaff: { select: { id: true, name: true, managerId: true } },
   // 件数は日報ごとに数える。1 回の SQL の中の副問い合わせになり、日報の件数だけクエリが増える（N+1）ことはない
   _count: { select: { visitRecords: true, comments: true } },
+  // 訪問した顧客の名前（一覧の「顧客」欄）。一覧の全日報の分を 1 回の問い合わせでまとめて読む（日報ごとには増えない）
+  visitRecords: {
+    select: { customer: { select: { id: true, name: true } } },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  },
 } satisfies Prisma.DailyReportSelect
 
 type ReportListRow = Prisma.DailyReportGetPayload<{ select: typeof reportListSelect }>
@@ -97,16 +104,7 @@ export async function listReports(
   user: AuthzUser,
   query: ReportListInput,
 ): Promise<{ items: ReportListItemView[]; meta: PageMeta }> {
-  requireRole(user, 'SALES', 'MANAGER')
-  if (query.salesStaffId !== undefined) {
-    const staff = await prisma.salesStaff.findUnique({
-      where: { id: query.salesStaffId },
-      select: { id: true, managerId: true },
-    })
-    if (!canFilterReportsByStaff(user, staff)) {
-      throw new ForbiddenError()
-    }
-  }
+  await requireReportListAccess(user, query.salesStaffId)
 
   const where: Prisma.DailyReportWhereInput = {
     AND: [
@@ -152,10 +150,59 @@ function toListItem(user: AuthzUser, row: ReportListRow): ReportListItemView {
     salesStaff: { id: row.salesStaff.id, name: row.salesStaff.name },
     status: row.status === 'SUBMITTED' ? 'submitted' : 'draft',
     visitCount: row._count.visitRecords,
+    customers: uniqueCustomers(row.visitRecords.map((record) => record.customer)),
     commentCount,
     // コメントできる日報（直属の上長から見た部下の提出済み日報）で、まだコメントがない（SC-02 の「●」）
     needsComment: canComment(user, authz) && commentCount === 0,
   }
+}
+
+/** 同じ顧客を複数回訪問していても 1 回だけにする（最初に出てきた順） */
+function uniqueCustomers(customers: { id: number; name: string }[]): { id: number; name: string }[] {
+  const seen = new Set<number>()
+  return customers.filter((customer) => !seen.has(customer.id) && seen.add(customer.id))
+}
+
+/**
+ * 日報一覧（R-01・SC-02）を見られるか確かめる。管理者は 403。
+ * `salesStaffId` を指定したときは、自分か直属の部下（無効になった部下も含む）でなければ 403（存在しない ID も 403）。
+ * 画面では、一覧の読み込み（ストリーミング）を始める前に呼び、403 のステータスを正しく返す
+ */
+export async function requireReportListAccess(user: AuthzUser, salesStaffId?: number): Promise<void> {
+  requireRole(user, 'SALES', 'MANAGER')
+  if (salesStaffId === undefined) {
+    return
+  }
+  const staff = await prisma.salesStaff.findUnique({ where: { id: salesStaffId }, select: { id: true, managerId: true } })
+  if (!canFilterReportsByStaff(user, staff)) {
+    throw new ForbiddenError()
+  }
+}
+
+/**
+ * 日報一覧（SC-02）の担当者セレクトに出す直属の部下（有効な人だけ。ID の順）。上長以外は空。
+ * 選択肢の「全員」「自分」は画面で足す（docs/screens.md SC-02・T-UI-04）
+ */
+export async function listReportSubordinateOptions(user: AuthzUser): Promise<{ id: number; name: string }[]> {
+  requireRole(user, 'SALES', 'MANAGER')
+  if (user.role !== 'MANAGER') {
+    return []
+  }
+  return prisma.salesStaff.findMany({
+    where: { managerId: user.id, isActive: true },
+    select: { id: true, name: true },
+    orderBy: { id: 'asc' },
+  })
+}
+
+/** ログインユーザー自身の、指定した日付の日報の ID（なければ null）。SC-02 の「今日の日報を書く」に使う */
+export async function findOwnReportId(user: AuthzUser, reportDate: string): Promise<number | null> {
+  requireRole(user, 'SALES', 'MANAGER')
+  const report = await prisma.dailyReport.findUnique({
+    where: { salesStaffId_reportDate: { salesStaffId: user.id, reportDate: dateStringToDbDate(reportDate) } },
+    select: { id: true },
+  })
+  return report?.id ?? null
 }
 
 // ---------------------------------------------------------------------------
