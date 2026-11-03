@@ -1,10 +1,12 @@
 import Link from 'next/link'
 
 import { LinkRow } from '@/components/link-row'
-import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateForDisplay } from '@/lib/date'
+import { reportDetailPath } from '@/lib/routes'
 import type { ReportStatus } from '@/schemas/report'
+
+import { ReportStatusBadge } from './report-status-badge'
 
 export interface ReportListItem {
   id: number
@@ -18,10 +20,6 @@ export interface ReportListItem {
   needsComment: boolean
 }
 
-export const reportDetailPath = (id: number) => `/reports/${id}`
-
-const STATUS_LABELS: Record<ReportStatus, string> = { draft: '下書き', submitted: '提出済み' }
-
 /** 訪問した顧客がないときの表示 */
 const NO_CUSTOMERS = '-'
 
@@ -31,9 +29,11 @@ const customerNames = (report: ReportListItem) =>
 
 /**
  * 日報一覧（SC-02）の一覧部分。PC 幅では表、スマートフォン幅ではカードで表示する（docs/screens.md §3.2・T-UI-25）。
- * 行（カード）を押すと日報詳細（SC-04）へ移る
+ * 行（カード）を押すと日報詳細（SC-04）へ移る。今の検索条件（`listQuery`）を引き継ぎ、詳細の「一覧へ戻る」で同じ一覧に戻れるようにする（T-UI-06）
  */
-export function ReportList({ reports }: { reports: ReportListItem[] }) {
+export function ReportList({ reports, listQuery = '' }: { reports: ReportListItem[]; listQuery?: string }) {
+  const detailPath = (id: number) => reportDetailPath(id, listQuery)
+
   if (reports.length === 0) {
     return <p className="rounded-lg border p-8 text-center text-muted-foreground">該当する日報はありません</p>
   }
@@ -54,9 +54,9 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
           </TableHeader>
           <TableBody>
             {reports.map((report) => (
-              <LinkRow key={report.id} href={reportDetailPath(report.id)}>
+              <LinkRow key={report.id} href={detailPath(report.id)}>
                 <TableCell className="font-medium">
-                  <Link href={reportDetailPath(report.id)} className="hover:underline">
+                  <Link href={detailPath(report.id)} className="hover:underline">
                     {formatDateForDisplay(report.reportDate)}
                   </Link>
                 </TableCell>
@@ -64,7 +64,7 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
                 <TableCell className="max-w-64 whitespace-normal">{customerNames(report)}</TableCell>
                 <TableCell className="text-right">{report.visitCount}</TableCell>
                 <TableCell>
-                  <StatusBadge status={report.status} />
+                  <ReportStatusBadge status={report.status} />
                 </TableCell>
                 <TableCell>
                   <CommentCount report={report} />
@@ -79,12 +79,12 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
         {reports.map((report) => (
           <li key={report.id}>
             <Link
-              href={reportDetailPath(report.id)}
+              href={detailPath(report.id)}
               className="block rounded-lg border p-4 transition-colors hover:bg-muted/50"
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-medium">{formatDateForDisplay(report.reportDate)}</span>
-                <StatusBadge status={report.status} />
+                <ReportStatusBadge status={report.status} />
               </div>
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                 <dt className="text-muted-foreground">担当者</dt>
@@ -103,14 +103,6 @@ export function ReportList({ reports }: { reports: ReportListItem[] }) {
         ))}
       </ul>
     </>
-  )
-}
-
-function StatusBadge({ status }: { status: ReportStatus }) {
-  return status === 'submitted' ? (
-    <Badge variant="secondary">{STATUS_LABELS.submitted}</Badge>
-  ) : (
-    <Badge variant="outline">{STATUS_LABELS.draft}</Badge>
   )
 }
 
