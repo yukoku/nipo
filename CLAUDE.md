@@ -127,7 +127,7 @@ src/
 - 部品の見た目は開発環境の `/dev/ui-sample` で確認できる（本番では 404）
 - ログイン後の画面は `src/app/(app)/` の下に置く（共通ヘッダー付きのレイアウト `src/app/(app)/layout.tsx` が付く）。ページの中では `<main>` を使わない（レイアウトが出す）
 - 画面に出す文言（docs/screens.md §5）は `@/lib/messages` の定数を使い、直接書かない
-- 完了メッセージ（M-09）は `notifySuccess('saved' | 'submitted' | 'commented')`、項目に結び付けられないエラーは `notifyError(apiErrorMessage(error))`（`@/lib/notify`・`@/lib/form-errors`）。画面を移動してもトーストは消えないので、保存したら `notifySuccess()` の後に `router.push()` してよい
+- 完了メッセージ（M-09）は `notifySuccess('saved' | 'submitted' | 'commented' | 'deleted')`、項目に結び付けられないエラーは `notifyError(apiErrorMessage(error))`（`@/lib/notify`・`@/lib/form-errors`）。画面を移動してもトーストは消えないので、保存したら `notifySuccess()` の後に `router.push()` してよい
 - 確認ダイアログは `const confirm = useConfirm()`（`@/components/confirm-dialog`）で `if (await confirm(CONFIRM_MESSAGES.submitReport)) { ... }` とする。`AlertDialog` を画面ごとに組み立てない
 - フォームの項目は `FormField`（`@/components/form-field`）で包む。`required` で `*` が付き、`error` を渡すと項目のすぐ下に赤字で出る。入力欄には `{...controlProps(id, fieldState.error)}` を付ける
 - API が 400 を返したら `applyApiErrors(error, form.setError, { fields: [...] })`（`@/lib/form-errors`）で各項目のエラーにする。項目に結び付けられないものは `<FormRootError errors={form.formState.errors} />` に出る。`false` が返ったら（409・500 など）`notifyError(apiErrorMessage(error))` を出す

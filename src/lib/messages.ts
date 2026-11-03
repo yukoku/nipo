@@ -9,6 +9,7 @@ export const SUCCESS_MESSAGES = {
   saved: '保存しました',
   submitted: '提出しました',
   commented: 'コメントを投稿しました',
+  deleted: '削除しました',
 } as const
 
 export type SuccessKind = keyof typeof SUCCESS_MESSAGES
