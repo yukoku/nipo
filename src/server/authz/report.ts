@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { Prisma, ReportStatus, Role } from '@/generated/prisma/client'
-import { ForbiddenError, NotFoundError } from '@/server/api/errors'
+import { ConflictError, ForbiddenError, NotFoundError } from '@/server/api/errors'
 
 /**
  * 日報の権限判定（docs/api.md §4「共通：閲覧権限・編集可能条件・削除可能条件」、§5「コメント可能条件」）
@@ -122,6 +122,25 @@ export function requireReportAccess<T extends AuthzReport>(
   }
   if (!canPerform(user, report, action)) {
     throw new ForbiddenError()
+  }
+}
+
+/**
+ * 日報を更新（R-04）できるか確かめる。できなければ例外を投げる。
+ *
+ * - 日報がない、または閲覧できない → `NotFoundError`（404）
+ * - 閲覧はできるが本人ではない（上長など） → `ForbiddenError`（403。T-RPT-64）
+ * - 本人だが、コメントが付いていて編集できない → `ConflictError`（409 `REPORT_LOCKED`。T-RPT-63・決定事項 #4）
+ *
+ * 決定事項 #15 のとおり、日報の行をロックしてから読み込んだ値を渡す
+ */
+export function requireReportEditable<T extends AuthzReport>(user: AuthzUser, report: T | null): asserts report is T {
+  requireReportAccess(user, report, 'view')
+  if (!isAuthor(user, report)) {
+    throw new ForbiddenError()
+  }
+  if (!canEditReport(user, report)) {
+    throw new ConflictError('REPORT_LOCKED')
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ForbiddenError, NotFoundError } from '@/server/api/errors'
+import { ConflictError, ForbiddenError, NotFoundError } from '@/server/api/errors'
 
 import {
   type AuthzReport,
@@ -14,6 +14,7 @@ import {
   canViewReport,
   reportPermissions,
   requireReportAccess,
+  requireReportEditable,
   viewableReportsWhere,
 } from './report'
 
@@ -217,5 +218,31 @@ describe('canFilterReportsByStaff（R-01 の sales_staff_id）', () => {
   it('管理者は自分を指定しても不可。存在しない担当者（null）も不可', () => {
     expect(canFilterReportsByStaff(ADMIN, { id: ADMIN.id, managerId: null })).toBe(false)
     expect(canFilterReportsByStaff(MANAGER, null)).toBe(false)
+  })
+})
+
+describe('requireReportEditable（R-04 の 404・403・409 の使い分け）', () => {
+  it('本人の下書き・コメントのない提出済み日報は、例外を投げない', () => {
+    expect(() => requireReportEditable(AUTHOR, DRAFT)).not.toThrow()
+    expect(() => requireReportEditable(AUTHOR, SUBMITTED)).not.toThrow()
+  })
+
+  it('日報がない・閲覧できない（同僚・他チームの上長・管理者・部下の下書きを見る上長）は 404', () => {
+    expect(() => requireReportEditable(AUTHOR, null)).toThrow(NotFoundError)
+    expect(() => requireReportEditable(COLLEAGUE, SUBMITTED)).toThrow(NotFoundError)
+    expect(() => requireReportEditable(OTHER_MANAGER, SUBMITTED)).toThrow(NotFoundError)
+    expect(() => requireReportEditable(ADMIN, SUBMITTED)).toThrow(NotFoundError)
+    expect(() => requireReportEditable(MANAGER, DRAFT)).toThrow(NotFoundError)
+  })
+
+  it('T-RPT-64: 閲覧はできるが本人ではない上長は 403', () => {
+    expect(() => requireReportEditable(MANAGER, SUBMITTED)).toThrow(ForbiddenError)
+    // コメントが付いていても、本人でなければ 409 ではなく 403
+    expect(() => requireReportEditable(MANAGER, COMMENTED)).toThrow(ForbiddenError)
+  })
+
+  it('T-RPT-63: 本人でも、コメントが付いた日報は 409 REPORT_LOCKED', () => {
+    expect(() => requireReportEditable(AUTHOR, COMMENTED)).toThrow(ConflictError)
+    expect(() => requireReportEditable(AUTHOR, COMMENTED)).toThrow(expect.objectContaining({ reason: 'REPORT_LOCKED' }))
   })
 })
