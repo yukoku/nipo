@@ -859,6 +859,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /reports/{id}:
+    get:
+      operationId: R-03
+      summary: R-03 日報詳細取得
+      description: 本人は自分の日報（下書きを含む）、上長は直属の部下の提出済み日報を取得できる。日報がない・閲覧できないときは、どちらも同じ 404（存在を推測させない）。管理者も 404。訪問記録は sort_order の順、コメントは created_at の昇順。permissions はログインユーザーから見た値
+      tags:
+        - 日報
+      security:
+        - sessionCookie: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            description: ID
+            example: 10
+          required: true
+          description: ID
+          name: id
+          in: path
+      responses:
+        "200":
+          description: 日報
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Report"
+                required:
+                  - data
+        "400":
+          description: 入力チェックエラー（`VALIDATION_ERROR`）。`details` に項目別のメッセージ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未ログイン・セッション切れ・認証失敗（`UNAUTHENTICATED`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 対象が存在しない、または閲覧権限がない（`NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー（`INTERNAL_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /customers:
     get:
       operationId: M-01
