@@ -22,5 +22,5 @@ export default async function ReportDetailPage({ params, searchParams }: PagePro
     .then(() => getReport(user, parseIdParam(id)))
     .catch(rethrowAsPageError)
 
-  return <ReportDetail report={report} listHref={reportListPath(listQuery)} />
+  return <ReportDetail report={report} listHref={reportListPath(listQuery)} currentUserId={user.id} />
 }

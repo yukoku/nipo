@@ -8,6 +8,7 @@ import { formatDateForDisplay, formatDateTimeForDisplay } from '@/lib/date'
 import { reportEditPath } from '@/lib/routes'
 import type { ReportStatus } from '@/schemas/report'
 
+import { type ReportComment, ReportComments } from './report-comments'
 import { ReportStatusBadge } from './report-status-badge'
 
 /** 日報詳細に表示する日報（`getReport()` の結果のうち、この画面で使う項目） */
@@ -25,7 +26,9 @@ export interface ReportDetailReport {
     visitedAt: string | null
     content: string
   }[]
-  permissions: { canEdit: boolean }
+  /** コメント（投稿日時の古い順） */
+  comments: readonly ReportComment[]
+  permissions: { canEdit: boolean; canComment: boolean }
 }
 
 /** 未入力の項目の表示 */
@@ -42,8 +45,19 @@ const NO_TIME = '-'
  * - 利用者が入力した文字は React の通常の描画で出す（`dangerouslySetInnerHTML` は使わない。HTML はエスケープされる。T-UI-21）
  * - 「編集」は本人が編集できるときだけ出す（`permissions.canEdit`。T-UI-17）
  * - 「一覧へ戻る」は、一覧から引き継いだ検索条件の一覧に戻る（`listHref`。T-UI-06）
+ * - Problem・Plan の下に、それぞれのコメントを出す（T-UI-19。投稿・編集・削除は `ReportComments`）
  */
-export function ReportDetail({ report, listHref }: { report: ReportDetailReport; listHref: string }) {
+export function ReportDetail({
+  report,
+  listHref,
+  currentUserId,
+}: {
+  report: ReportDetailReport
+  listHref: string
+  /** ログインユーザーの ID（自分のコメントだけ編集・削除できるようにする） */
+  currentUserId: number
+}) {
+  const commentProps = { reportId: report.id, canComment: report.permissions.canComment, currentUserId }
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -92,10 +106,20 @@ export function ReportDetail({ report, listHref }: { report: ReportDetailReport;
 
       <DetailSection id="problem" title="Problem（課題・相談）">
         <MultilineText text={report.problem} />
+        <ReportComments
+          {...commentProps}
+          target="problem"
+          comments={report.comments.filter((comment) => comment.target === 'problem')}
+        />
       </DetailSection>
 
       <DetailSection id="plan" title="Plan（明日やること）">
         <MultilineText text={report.plan} />
+        <ReportComments
+          {...commentProps}
+          target="plan"
+          comments={report.comments.filter((comment) => comment.target === 'plan')}
+        />
       </DetailSection>
     </div>
   )

@@ -1,7 +1,14 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+import { AppProviders } from '@/components/app-providers'
 
 import { type ReportDetailReport, ReportDetail } from './report-detail'
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }) }))
+
+const YAMADA_ID = 2
+const SUZUKI_ID = 1
 
 const SUBMITTED: ReportDetailReport = {
   id: 101,
@@ -20,7 +27,25 @@ const SUBMITTED: ReportDetailReport = {
     },
     { id: 502, customer: { id: 13, name: '旧取引先' }, visitedAt: null, content: '<script>alert(1)</script>' },
   ],
-  permissions: { canEdit: true },
+  comments: [
+    {
+      id: 801,
+      target: 'problem',
+      body: '5%までなら即決OK。\nそれ以上は相談して。',
+      commenter: { id: SUZUKI_ID, name: '鈴木一郎' },
+      createdAt: new Date('2026-10-30T10:10:00Z'),
+      updatedAt: new Date('2026-10-30T10:10:00Z'),
+    },
+    {
+      id: 802,
+      target: 'plan',
+      body: '資料は私にも送って',
+      commenter: { id: SUZUKI_ID, name: '鈴木一郎' },
+      createdAt: new Date('2026-10-30T10:20:00Z'),
+      updatedAt: new Date('2026-10-30T10:20:00Z'),
+    },
+  ],
+  permissions: { canEdit: true, canComment: false },
 }
 
 const DRAFT: ReportDetailReport = {
@@ -31,10 +56,15 @@ const DRAFT: ReportDetailReport = {
   problem: null,
   plan: null,
   visitRecords: [],
+  comments: [],
 }
 
-function renderDetail(report: ReportDetailReport, listHref = '/reports') {
-  render(<ReportDetail report={report} listHref={listHref} />)
+function renderDetail(report: ReportDetailReport, listHref = '/reports', currentUserId = YAMADA_ID) {
+  return render(
+    <AppProviders>
+      <ReportDetail report={report} listHref={listHref} currentUserId={currentUserId} />
+    </AppProviders>,
+  )
 }
 
 describe('日報詳細（SC-04）', () => {
@@ -76,7 +106,7 @@ describe('日報詳細（SC-04）', () => {
   })
 
   it('T-UI-21: 入力された HTML は文字列としてそのまま表示し、要素として解釈しない', () => {
-    const { container } = render(<ReportDetail report={SUBMITTED} listHref="/reports" />)
+    const { container } = renderDetail(SUBMITTED)
 
     expect(
       within(screen.getByRole('table', { name: '訪問記録' })).getByText('<script>alert(1)</script>'),
@@ -91,7 +121,7 @@ describe('日報詳細（SC-04）', () => {
   })
 
   it('T-UI-17: 編集できない日報（コメント付き・上長から見た部下の日報）には「編集」を出さない', () => {
-    renderDetail({ ...SUBMITTED, permissions: { canEdit: false } })
+    renderDetail({ ...SUBMITTED, permissions: { canEdit: false, canComment: false } })
 
     expect(screen.queryByRole('link', { name: '編集' })).not.toBeInTheDocument()
   })
@@ -103,5 +133,41 @@ describe('日報詳細（SC-04）', () => {
       'href',
       '/reports?customer_name=ABC&page=2',
     )
+  })
+
+  it('T-UI-19: コメントを Problem・Plan それぞれのセクションの下に出す（改行はそのまま）', () => {
+    renderDetail(SUBMITTED)
+
+    const problem = screen.getByRole('region', { name: 'Problem（課題・相談）' })
+    const plan = screen.getByRole('region', { name: 'Plan（明日やること）' })
+    const problemComments = within(problem).getByRole('list', { name: 'Problem へのコメント' })
+    expect(within(problemComments).getByText(/5%までなら即決OK/).textContent).toBe(
+      '5%までなら即決OK。\nそれ以上は相談して。',
+    )
+    expect(within(problemComments).getByText('鈴木一郎')).toBeInTheDocument()
+    expect(within(problemComments).getByText('2026/10/30 19:10')).toBeInTheDocument()
+    expect(within(problem).queryByText('資料は私にも送って')).not.toBeInTheDocument()
+    expect(within(plan).getByText('資料は私にも送って')).toBeInTheDocument()
+  })
+
+  it('コメントがないセクションには「コメントはまだありません」と出す', () => {
+    renderDetail({ ...SUBMITTED, comments: [] })
+
+    expect(screen.getAllByText('コメントはまだありません')).toHaveLength(2)
+  })
+
+  it('T-UI-18: コメントできる人（直属の上長）には、Problem・Plan それぞれに入力欄と「投稿」を出す', () => {
+    renderDetail({ ...SUBMITTED, permissions: { canEdit: false, canComment: true } }, '/reports', SUZUKI_ID)
+
+    expect(screen.getByRole('textbox', { name: /Problem へのコメント/ })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /Plan へのコメント/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '投稿' })).toHaveLength(2)
+  })
+
+  it('T-UI-18: コメントできない人（日報を書いた本人）には、入力欄を出さない', () => {
+    renderDetail(SUBMITTED)
+
+    expect(screen.queryByRole('textbox', { name: /へのコメント/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '投稿' })).not.toBeInTheDocument()
   })
 })
